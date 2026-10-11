@@ -2,6 +2,7 @@
 import { computed, defineAsyncComponent, inject, onBeforeUnmount, onMounted, ref, unref } from 'vue'
 import { useTheme } from 'vuetify'
 import type { ApexOptions } from 'apexcharts'
+import type ApexCharts from 'apexcharts'
 import type { DashboardChartVariant, DashboardSeriesData, DashboardWidgetType } from '@/stores/dashboards/types'
 import {
   CHART_PALETTE_OVERRIDE,
@@ -63,12 +64,56 @@ onBeforeUnmount(() => {
   globalThis.clearTimeout(deferredRenderHandle)
 })
 
+/**
+ * Shopify admin headline over a timeseries ("$10,317.06 ↗ 31%"): the period
+ * total (mean for percent units) against the same aggregate of the previous
+ * period. Only the polaris skin renders it — every other option keeps the
+ * chart flush with the card header.
+ */
+const headline = computed(() => {
+  if (resolvedTheme.value.skin !== 'polaris' || props.widgetType !== 'timeseries') return null
+  const { series, unit } = props.data
+  const current = series.find((s) => !s.isComparison)
+  if (!current) return null
+  const aggregate = (values: Array<number | null | undefined>) => {
+    const nums = values.filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+    if (nums.length === 0) return 0
+    const sum = nums.reduce((a, b) => a + b, 0)
+    return unit === 'percent' ? sum / nums.length : sum
+  }
+  const value = aggregate(current.data)
+  const previous = series.find((s) => s.isComparison)
+  const previousValue = previous ? aggregate(previous.data) : null
+  const delta = previousValue && previousValue > 0 ? (value - previousValue) / previousValue : null
+  return {
+    value: formatFullValue(value, unit),
+    delta,
+    deltaText: delta === null ? null : `${Math.round(Math.abs(delta) * 100)}%`,
+  }
+})
+const headlineEl = ref<HTMLElement | null>(null)
+const { size: headlineSize } = useElementSize(headlineEl)
+const headlineColor = computed(() => {
+  const posNeg = treatment.value?.posNeg
+  if (!headline.value || headline.value.delta === null || !posNeg) return undefined
+  return headline.value.delta >= 0 ? posNeg.positive : posNeg.negative
+})
+
+// A one-bucket range ("Yesterday") gives every series a single point, and a
+// line through one point paints nothing. Show the point itself at hover size
+// so the chart still reads; multi-point series keep their hover-only markers.
+const restingMarkerSize = computed(() => (
+  props.data.labels.length <= 1 ? (treatment.value?.markers.hoverSize ?? 5) : 0
+))
+
 const chartHeight = computed(() => {
   // Readability floors: the main timeseries never renders below 240px, other
   // charts never below 200px, regardless of how small the card body measures.
   const floor = props.widgetType === 'timeseries' ? 240 : 200
   if (!props.height || props.height < 60) return 240
-  return Math.max(floor, props.height - 4)
+  // The polaris headline sits inside the same clipping box, so it comes off the chart.
+  const headlineHeight = headline.value ? (headlineSize.value.height || 28) + 8 : 0
+  return Math.max(floor - headlineHeight, props.height - 4 - headlineHeight)
 })
 
 // Measure `.dashboard-chart-widget` itself (the overflow: hidden clipping
@@ -206,6 +251,34 @@ function chartTooltip({ dataPointIndex }: { dataPointIndex: number }): string {
   return `<div class="mp-chart-tip"><div class="mp-chart-tip__title">${labels[dataPointIndex] ?? ''}</div>${rows}</div>`
 }
 
+/** Legend preview for the Polaris legend: a 12×2 line, or three dots for the comparison series. */
+function legendMarkerHtml(color: string, isComparison: boolean): string {
+  if (isComparison) {
+    const dot = `<span style="display:inline-block;width:2px;height:2px;border-radius:50%;background:${color}"></span>`
+    return `<span style="display:inline-flex;align-items:center;justify-content:space-between;width:12px;height:12px">${dot}${dot}${dot}</span>`
+  }
+  return `<span style="display:inline-flex;align-items:center;width:12px;height:12px"><span style="display:block;width:12px;height:2px;border-radius:1px;background:${color}"></span></span>`
+}
+
+/**
+ * Apex only takes one dash number per series; Polaris's previous period is a
+ * "0.1 4" dot pattern. After every draw, stamp that pattern onto the comparison
+ * series' stroke paths (the fill path has no stroke and is left alone).
+ */
+function applyComparisonDashPattern(chart: ApexCharts): void {
+  const pattern = treatment.value?.comparison.dashPattern
+  // Apex hands its instance to events; the rendered root is only on the untyped surface.
+  const ctx = chart as unknown as { el?: Element; w?: { globals?: { dom?: { baseEl?: Element } } } }
+  const root = ctx?.el ?? ctx?.w?.globals?.dom?.baseEl
+  if (!pattern || !root) return
+  props.data.series.forEach((series, i) => {
+    if (!series.isComparison) return
+    root.querySelectorAll(`.apexcharts-series[rel="${i + 1}"] path[stroke]:not([stroke="none"])`).forEach((path) => {
+      path.setAttribute('stroke-dasharray', pattern)
+    })
+  })
+}
+
 const chartOptions = computed<ApexOptions>(() => {
   const base = applyChartTheme.value()
   const activePalette = resolvedTheme.value.series
@@ -278,6 +351,21 @@ const chartOptions = computed<ApexOptions>(() => {
         return { type: 'gradient', gradient: { type: 'vertical', colorStops: stops } }
       }
       if (tt.bar.fill === 'solid' || divergingBars) return { type: 'solid' }
+      // Soft: the series colour at full strength at the head easing to ~72% at
+      // the base — same hue both ends, so it reads as depth, not as a second
+      // colour (the merchant "middle" between flat and gloss).
+      if (tt.bar.fill === 'soft-gradient') {
+        return {
+          type: 'gradient',
+          gradient: {
+            type: isHorizontalBar.value ? 'horizontal' : 'vertical',
+            shadeIntensity: 0,
+            opacityFrom: 1,
+            opacityTo: 0.72,
+            gradientToColors: resolvedSeriesColors.value,
+          },
+        }
+      }
       // Grouped/horizontal bars: a clean full-height sweep from the series'
       // luminous companion at the head into the base colour — both ends
       // bright, no gloss cap or dark lip (reference style: Stripe/Sea Blizz).
@@ -423,6 +511,9 @@ const chartOptions = computed<ApexOptions>(() => {
       zoom: { enabled: false },
       redrawOnParentResize: false,
       ...(isStacked.value ? { stacked: true } : {}),
+      ...(t?.comparison.dashPattern && hasComparisonSeries.value
+        ? { events: { ...base.chart?.events, mounted: applyComparisonDashPattern, updated: applyComparisonDashPattern, animationEnd: applyComparisonDashPattern } }
+        : {}),
       ...(t
         ? (t.effects.dropShadow && isTimeseries
             ? {
@@ -470,6 +561,7 @@ const chartOptions = computed<ApexOptions>(() => {
     stroke: t
       ? {
           curve: t.stroke.curve,
+          lineCap: t.stroke.lineCap ?? 'butt',
           // Lead series carries the full weight; companions and the previous-period
           // comparison series step back to companionWidth. Stacked bands are
           // peers — every band keeps the full weight and stays solid, so the
@@ -589,7 +681,7 @@ const chartOptions = computed<ApexOptions>(() => {
           ? {
               markers: t.markers.lastPoint && props.data.series.length === 1
                 ? {
-                    size: 0,
+                    size: restingMarkerSize.value,
                     discrete: [{
                       seriesIndex: 0,
                       dataPointIndex: (props.data.series[0]?.data as number[]).length - 1,
@@ -600,16 +692,16 @@ const chartOptions = computed<ApexOptions>(() => {
                     }],
                     hover: { size: t.markers.hoverSize },
                   }
-                : { size: 0, strokeColors: markerStrokeColor.value, hover: { size: t.markers.hoverSize } },
+                : { size: restingMarkerSize.value, strokeColors: markerStrokeColor.value, hover: { size: t.markers.hoverSize } },
             }
           : {})
       : props.widgetType === 'timeseries' && flatMarks.value
       // Polaris is hover-only: no persistent last-point dot.
-      ? { markers: { size: 0, strokeColors: markerStrokeColor.value, hover: { size: 4 } } }
+      ? { markers: { size: restingMarkerSize.value, strokeColors: markerStrokeColor.value, hover: { size: 4 } } }
       : props.widgetType === 'timeseries' && props.data.series.length === 1
         ? {
             markers: {
-              size: 0,
+              size: restingMarkerSize.value,
               discrete: [{
                 seriesIndex: 0,
                 dataPointIndex: (props.data.series[0]?.data as number[]).length - 1,
@@ -633,9 +725,9 @@ const chartOptions = computed<ApexOptions>(() => {
           formatter: (value: number) => formatCompactValue(value, props.data.unit),
         }
       : { enabled: false },
-    legend: showLegend
+    legend: showLegend && t?.legend.show !== false
       ? {
-          ...chartLegendOptions(resolvedSeriesColors.value, chrome, 'top'),
+          ...chartLegendOptions(resolvedSeriesColors.value, chrome, t?.legend.position ?? 'top', t?.legend.align, t?.legend.fontSize),
           // shadcn legend: small square markers. Dots use the same resolved
           // per-series colours as the marks (incl. the comparison stroke).
           markers: t
@@ -644,6 +736,18 @@ const chartOptions = computed<ApexOptions>(() => {
                 shape: t.legend.markerShape,
                 strokeWidth: 0,
                 fillColors: resolvedSeriesColors.value,
+                // Polaris legend previews: a 12×2 line per series, three dots for
+                // the previous period. Apex has no dotted marker, so we hand it the
+                // HTML per series (fillColors still drives the colour vision dimming).
+                ...(t.legend.comparisonMarker === 'dots'
+                  ? {
+                      // Apex accepts one function per series here; its typings only know the single-function form.
+                      customHTML: props.data.series.map((series, i) => () => legendMarkerHtml(
+                        resolvedSeriesColors.value[i % resolvedSeriesColors.value.length]!,
+                        series.isComparison === true,
+                      )) as unknown as () => string,
+                    }
+                  : {}),
               }
             : { size: 8, shape: 'square', strokeWidth: 0, fillColors: resolvedSeriesColors.value },
           ...(t ? { onItemHover: { highlightDataSeries: t.legend.hoverHighlight } } : {}),
@@ -652,9 +756,24 @@ const chartOptions = computed<ApexOptions>(() => {
     xaxis: {
       ...base.xaxis,
       categories: props.data.labels,
+      // Stripe keeps only the first and last category label ("3 Dec … Today").
+      ...(t?.axes.xLabels === 'ends' ? { tickAmount: Math.max(1, props.data.labels.length - 1) } : {}),
+      axisBorder: { show: t?.axes.baseline === true, color: chrome.grid, height: 1 },
       labels: {
         ...base.xaxis?.labels,
         offsetY: 2,
+        ...(t?.axes.labelFontSize
+          ? { style: { ...base.xaxis?.labels?.style, fontSize: `${t.axes.labelFontSize}px`, fontWeight: t.axes.labelFontWeight ?? 500 } }
+          : {}),
+        ...(t?.axes.xLabels === 'ends'
+          ? {
+              hideOverlappingLabels: false,
+              formatter: (value: string) => {
+                const labels = props.data.labels
+                return value === labels[0] || value === labels[labels.length - 1] ? value : ''
+              },
+            }
+          : {}),
       },
       crosshairs: isBar
         ? { show: false }
@@ -672,13 +791,17 @@ const chartOptions = computed<ApexOptions>(() => {
     // Stacked charts always keep the scale — the cumulative total is the point,
     // and a stack read without a y-axis is just a texture.
     yaxis: {
+      ...(t?.axes.yTickAmount != null ? { tickAmount: t.axes.yTickAmount } : {}),
       labels: (isStacked.value || props.chartVariant === 'line' || isHorizontalBar.value || (flatMarks.value && props.widgetType === 'timeseries') || (t?.axes.yLabelsOnTimeseries === true && isTimeseries))
         ? {
-            formatter: (value: number) => formatCompactValue(value, props.data.unit),
+            formatter: (value: number) => {
+              const text = formatCompactValue(value, props.data.unit)
+              return t?.axes.compactUnitCase === 'upper' ? text.replace(/([kmb])$/, (m) => m.toUpperCase()) : text
+            },
             style: {
               colors: chrome.axisLabel,
-              fontSize: '12px',
-              fontWeight: 500,
+              fontSize: `${t?.axes.labelFontSize ?? 12}px`,
+              fontWeight: t?.axes.labelFontWeight ?? 500,
             },
           }
         : { show: false },
@@ -710,6 +833,13 @@ const chartOptions = computed<ApexOptions>(() => {
 
 <template>
   <div ref="rootEl" class="dashboard-chart-widget" role="img" :aria-label="chartAriaLabel">
+    <div v-if="headline" ref="headlineEl" class="dashboard-chart-widget__headline">
+      <span class="dashboard-chart-widget__headline-value">{{ headline.value }}</span>
+      <span v-if="headline.deltaText" class="dashboard-chart-widget__headline-delta" :style="{ color: headlineColor }">
+        <v-icon size="12">{{ (headline.delta ?? 0) >= 0 ? 'arrow-up-right' : 'arrow-down-right' }}</v-icon>
+        {{ headline.deltaText }}
+      </span>
+    </div>
     <ApexChart
       v-if="chartReady"
       :height="chartHeight"
@@ -732,6 +862,33 @@ const chartOptions = computed<ApexOptions>(() => {
   overflow: hidden;
   padding-top: var(--mp-space-4);
   container-type: inline-size;
+}
+
+/* Polaris-skin headline; the --mp-skin-* vars are set by shopify-admin-skin.css
+   and fall back to the design-system values everywhere else. */
+.dashboard-chart-widget__headline {
+  display: flex;
+  align-items: baseline;
+  gap: var(--mp-space-8);
+  margin-bottom: var(--mp-space-8);
+}
+
+.dashboard-chart-widget__headline-value {
+  font-size: var(--mp-fontSize-20);
+  font-weight: var(--mp-skin-weight-semibold, var(--mp-fontWeight-semibold));
+  line-height: 1.2;
+  letter-spacing: 0;
+  color: var(--mp-skin-text, var(--text-primary));
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard-chart-widget__headline-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mp-space-2);
+  font-size: var(--mp-fontSize-13);
+  font-weight: var(--mp-skin-weight-medium, var(--mp-fontWeight-medium));
+  color: var(--muted);
 }
 
 /* Legend items ("Revenue", "Paid Search", …) have no fixed width from Apex —

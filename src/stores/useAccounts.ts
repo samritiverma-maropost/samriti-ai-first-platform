@@ -9,6 +9,19 @@ export type SubscriptionKey =
   | 'service'
   | 'davinci'
 
+/** The person who owns a self-created (trial) account. Seed accounts have none and fall back to the demo identity. */
+export interface AccountOwner {
+  /** Supplied by the user, or null — never inferred from the email address. */
+  name: string | null
+  email: string
+  role: string
+  /** When the in-app welcome dialog was answered or skipped; null/undefined = still to show. */
+  welcomedAt?: string | null
+}
+
+/** Label a self-created account carries until its owner names the workspace. */
+export const TRIAL_WORKSPACE_FALLBACK = 'Trial workspace'
+
 export interface Account {
   id: string
   name: string
@@ -17,6 +30,8 @@ export interface Account {
   subscriptions: SubscriptionKey[]
   /** Sidebar appearance for this account; omitted = gray (the default). */
   sidebarTheme?: 'white' | 'gray' | 'dark'
+  /** Present on accounts created by a signup flow; drives the AppBar identity. */
+  owner?: AccountOwner
 }
 
 const STORAGE_KEY = 'mp.activeAccountId'
@@ -175,9 +190,7 @@ export const useAccountsStore = defineStore('accounts', () => {
     activeId.value = id
   }
 
-  function addAccount(account: Account) {
-    if (accounts.value.some(a => a.id === account.id)) return
-    accounts.value = [...accounts.value, account]
+  function persistCustomAccounts() {
     if (typeof window === 'undefined') return
     try {
       const custom = accounts.value.filter(a => !DEFAULT_ACCOUNTS.some(d => d.id === a.id))
@@ -185,6 +198,32 @@ export const useAccountsStore = defineStore('accounts', () => {
     } catch {
       // ignore storage quota / disabled errors
     }
+  }
+
+  function addAccount(account: Account) {
+    if (accounts.value.some(a => a.id === account.id)) return
+    accounts.value = [...accounts.value, account]
+    persistCustomAccounts()
+  }
+
+  /** Edits a self-created account in place (name, initials, owner). Seed accounts are immutable. */
+  function updateAccount(id: string, patch: Partial<Pick<Account, 'name' | 'initials' | 'owner'>>) {
+    if (DEFAULT_ACCOUNTS.some(d => d.id === id)) return
+    const idx = accounts.value.findIndex(a => a.id === id)
+    if (idx === -1) return
+    const next = [...accounts.value]
+    next[idx] = { ...next[idx]!, ...patch }
+    accounts.value = next
+    persistCustomAccounts()
+  }
+
+  /** Removes a self-created account (seed accounts are permanent). Falls back to the first seed account if it was active. */
+  function removeAccount(id: string) {
+    if (DEFAULT_ACCOUNTS.some(d => d.id === id)) return
+    if (!accounts.value.some(a => a.id === id)) return
+    accounts.value = accounts.value.filter(a => a.id !== id)
+    if (activeId.value === id) activeId.value = DEFAULT_ACCOUNTS[0]!.id
+    persistCustomAccounts()
   }
 
   watch(activeId, (next) => {
@@ -196,5 +235,5 @@ export const useAccountsStore = defineStore('accounts', () => {
     }
   })
 
-  return { accounts, activeId, activeAccount, hasSubscription, hasAnySubscription, switchTo, addAccount }
+  return { accounts, activeId, activeAccount, hasSubscription, hasAnySubscription, switchTo, addAccount, updateAccount, removeAccount }
 })

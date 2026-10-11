@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAccountsStore, type SubscriptionKey } from '@/stores/useAccounts'
 import { useSalesChannelsStore } from '@/stores/useSalesChannels'
+import { trialLabRoutes } from '@/views/TrialLab/trialLabRoutes'
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -18,6 +19,15 @@ declare module 'vue-router' {
     requiresAny?: SubscriptionKey[]
     /** Sales Orders rendered as the retail transactions log (POS-only, retail columns). */
     posMode?: boolean
+    /** Templates gallery: the child hosts a standalone wizard/builder shell, so the layout drops its content padding. */
+    templateFill?: boolean
+    /** Trial Lab prototype: full-page lab shell that also keeps the copilot drawer closed. */
+    trialLab?: boolean
+    /** Trial journey plumbing — see src/views/TrialLab/trialLabRoutes.ts. */
+    trialFamily?: 'lab' | 'signup'
+    trialBase?: string
+    trialVariant?: string
+    trialStage?: string
   }
 }
 
@@ -256,6 +266,13 @@ const routes: RouteRecordRaw[] = [
       { path: 'blogs/:entryId', name: 'StoreBlogEdit', component: () => import('@/views/SalesChannels/StoreContentEditor.vue'), meta: { contentKind: 'blog' } },
       { path: 'campaigns', name: 'StoreCampaigns', component: () => import('@/views/SalesChannels/StoreCampaigns.vue') },
       { path: 'assets', name: 'StoreAssets', component: () => import('@/views/SalesChannels/StoreAssets.vue') },
+      // Installed themes: the current theme, the library themes on the store, and a way into the builder.
+      { path: 'themes', name: 'StoreThemes', component: () => import('@/views/SalesChannels/StoreThemes.vue') },
+      // The store's Payments: every provider it has, Maropay sold at the top (the Shopify Payments model).
+      { path: 'payments', name: 'StorePayments', component: () => import('@/views/SalesChannels/StorePaymentsPage.vue') },
+      // Maropay on this store: activation checklist, methods, capture and the switch itself.
+      { path: 'payments/maropay', name: 'StorePaymentsMaropay', component: () => import('@/views/Maropay/StoreMaropayPage.vue') },
+      // Samriti fork — store configuration hub (website, abandoned cart, legacy gateway flows).
       { path: 'settings', name: 'StoreSettingsLanding', component: () => import('@/views/SalesChannels/StoreSettingsLanding.vue') },
       { path: 'settings/website-configuration', name: 'StoreWebsiteConfiguration', component: () => import('@/views/SalesChannels/StoreWebsiteConfiguration.vue') },
       { path: 'settings/abandoned-cart', name: 'StoreAbandonedCartSettings', component: () => import('@/views/SalesChannels/StoreAbandonedCartSettings.vue') },
@@ -264,14 +281,57 @@ const routes: RouteRecordRaw[] = [
       { path: 'settings/payments/maropay/manage', name: 'MaropayManageSettings', component: () => import('@/views/SalesChannels/MaropayManageSettings.vue') },
     ],
   },
+
+  // The shopper-facing storefront of a Maropost web store (UAT parity — Neelam-Store): full page, no admin
+  // chrome, on the store's own paths. Links the real store doesn't serve land on its 404 page.
+  {
+    path: '/accounts/:accountId/sales_channels/:channelId/storefront',
+    component: () => import('@/views/Storefront/StorefrontLayout.vue'),
+    meta: { ...commerceGate, fullPage: true },
+    children: [
+      { path: '', name: 'StorefrontHome', component: () => import('@/views/Storefront/StorefrontHome.vue') },
+      { path: 'page/:handle', name: 'StorefrontPage', component: () => import('@/views/Storefront/StorefrontContent.vue'), meta: { contentKind: 'page' } },
+      { path: 'policies/:handle', name: 'StorefrontPolicy', component: () => import('@/views/Storefront/StorefrontContent.vue'), meta: { contentKind: 'policy' } },
+      { path: 'collections/:handle', name: 'StorefrontCollection', component: () => import('@/views/Storefront/StorefrontCollection.vue') },
+      { path: 'products/:handle', name: 'StorefrontProduct', component: () => import('@/views/Storefront/StorefrontProduct.vue') },
+      { path: 'cart-page', name: 'StorefrontCart', component: () => import('@/views/Storefront/StorefrontCart.vue') },
+      // Takes the payment through the store's Maropay setup; query: buy/qty (express buy-now), express, session.
+      { path: 'checkout', name: 'StorefrontCheckout', component: () => import('@/views/Storefront/StorefrontCheckout.vue'), meta: { minimalChrome: true } },
+      { path: ':pathMatch(.*)*', name: 'StorefrontNotFound', component: () => import('@/views/Storefront/StorefrontNotFound.vue') },
+    ],
+  },
+
+  // 5.8 Maropay — the account's payments workspace (rail shell), Commerce Cloud
+  // online first. Setup is a standalone builder shell, declared before the
+  // workspace so its static segment wins over the workspace's catch-all child.
+  { path: '/accounts/:accountId/maropay/setup', name: 'MaropaySetup', component: () => import('@/views/Maropay/MaropaySetupWizard.vue'), meta: { ...commerceGate, builderShell: true } },
+  {
+    path: '/accounts/:accountId/maropay',
+    component: () => import('@/views/Maropay/MaropayLayout.vue'),
+    meta: { ...commerceGate, railShell: true },
+    children: [
+      { path: '', name: 'MaropayOverview', component: () => import('@/views/Maropay/MaropayOverview.vue') },
+      { path: 'transactions', name: 'MaropayTransactions', component: () => import('@/views/Maropay/MaropayTransactions.vue') },
+      { path: 'transactions/:paymentId', name: 'MaropayPaymentDetail', component: () => import('@/views/Maropay/MaropayPaymentDetail.vue') },
+      { path: 'payouts', name: 'MaropayPayouts', component: () => import('@/views/Maropay/MaropayPayouts.vue') },
+      { path: 'payouts/:payoutId', name: 'MaropayPayoutDetail', component: () => import('@/views/Maropay/MaropayPayoutDetail.vue') },
+      { path: 'disputes', name: 'MaropayDisputes', component: () => import('@/views/Maropay/MaropayDisputes.vue') },
+      { path: 'disputes/:disputeId', name: 'MaropayDisputeDetail', component: () => import('@/views/Maropay/MaropayDisputeDetail.vue') },
+      { path: 'settings', name: 'MaropaySettings', component: () => import('@/views/Maropay/MaropaySettings.vue') },
+      // Maropay on one store, inside Maropay's frame — the same page the store editor shows as StorePaymentsMaropay.
+      { path: 'stores/:channelId', name: 'MaropayStorePayments', component: () => import('@/views/Maropay/StoreMaropayPage.vue'), props: { frame: 'maropay' } },
+      // Unknown sub-paths land on the overview (Merchandising precedent).
+      { path: ':pathMatch(.*)*', redirect: (to) => ({ name: 'MaropayOverview', params: { accountId: to.params.accountId } }) },
+    ],
+  },
   {
     path: '/accounts/:accountId/store-payments-setup',
     name: 'StorePaymentsSetup',
     redirect: (to) => {
       const accountId = Array.isArray(to.params.accountId) ? to.params.accountId[0] : to.params.accountId
       return {
-        name: 'StorePaymentsGateway',
-        params: { accountId, channelId: 'beta-sales-channel' },
+        name: 'StorePayments',
+        params: { accountId, channelId: 'retest-sales-notification' },
       }
     },
     meta: commerceGate,
@@ -411,7 +471,8 @@ const routes: RouteRecordRaw[] = [
   { path: '/accounts/:accountId/notifications', name: 'Notifications', component: () => import('@/views/Notifications/NotificationsView.vue') },
 
   // PLG — trial signup, plan selection, mock hosted checkout
-  { path: '/signup', name: 'Signup', component: () => import('@/views/Plg/SignupView.vue'), meta: { fullPage: true } },
+  // The orb / one-question-at-a-time signup, kept for comparison. `/signup` is now the real trial journey (trialLabRoutes).
+  { path: '/signup-legacy', name: 'SignupLegacy', component: () => import('@/views/Plg/SignupView.vue'), meta: { fullPage: true } },
   { path: '/accounts/:accountId/plans', name: 'Plans', component: () => import('@/views/Plg/PlansView.vue') },
   { path: '/accounts/:accountId/checkout', name: 'Checkout', component: () => import('@/views/Plg/CheckoutView.vue'), meta: { fullPage: true } },
 
@@ -432,6 +493,28 @@ const routes: RouteRecordRaw[] = [
   // socialGradient palette. Production /dashboard is untouched.
   { path: '/accounts/:accountId/dashboard-gradient', name: 'DashboardGradient', component: () => import('@/views/DashboardGradient/DashboardGradientView.vue') },
   { path: '/accounts/:accountId/dashboard-gradient/:dashboardId', name: 'DashboardGradientDetail', component: () => import('@/views/DashboardGradient/DashboardGradientView.vue') },
+
+  // Page-archetype gallery — an engineering reference, not a product surface.
+  // No :accountId (the guard is a no-op without one) and no gating; the parent's
+  // railShell meta is what collapses the global sidebar behind the Templates rail.
+  {
+    path: '/templates',
+    component: () => import('@/views/Templates/TemplatesLayout.vue'),
+    meta: { railShell: true },
+    children: [
+      { path: '', name: 'TemplatesIndex', component: () => import('@/views/Templates/TemplatesIndex.vue') },
+      { path: 'list', name: 'TemplateList', component: () => import('@/views/Templates/TemplateListPage.vue') },
+      { path: 'detail', name: 'TemplateDetail', component: () => import('@/views/Templates/TemplateDetailPage.vue') },
+      { path: 'form-drawer', name: 'TemplateFormDrawer', component: () => import('@/views/Templates/TemplateFormDrawerPage.vue') },
+      { path: 'landing', name: 'TemplateLanding', component: () => import('@/views/Templates/TemplateLandingPage.vue') },
+      { path: 'wizard', name: 'TemplateWizard', component: () => import('@/views/Templates/TemplateWizardPage.vue'), meta: { templateFill: true } },
+      { path: 'builder', name: 'TemplateBuilder', component: () => import('@/views/Templates/TemplateBuilderPage.vue'), meta: { templateFill: true } },
+      { path: 'states', name: 'TemplateStates', component: () => import('@/views/Templates/TemplateStatesPage.vue') },
+    ],
+  },
+
+  // Trial Lab — four free-trial onboarding prototypes (design research, not a product surface).
+  ...trialLabRoutes,
 
   // Redirect root to dashboard
   /** Pre-merge review — ROVO / Da Vinci Sidekick-style panel (see src/review/rovo-davinci/README.md) */

@@ -11,7 +11,11 @@ import DvOrbitOrb from '@/components/copilot/voice/DvOrbitOrb.vue'
 import MpNotificationsMenu from '@/components/MpNotificationsMenu.vue'
 import MpSegmentedControl from '@/components/MpSegmentedControl.vue'
 import PlgTrialChip from '@/components/plg/PlgTrialChip.vue'
+import MaropayDemoControls from '@/components/maropay/MaropayDemoControls.vue'
 import { usePlgStore, PLG_DEMO_PRESETS, type PlgDemoPreset } from '@/stores/usePlg'
+import { useCatalogCopilotStore } from '@/stores/useCatalogCopilot'
+import { CATALOG_SCENARIOS, isCatalogScenario } from '@/composables/catalogCopilotConfig'
+import { useTrialLabStore } from '@/stores/useTrialLab'
 
 const copilot = useCopilotStore()
 const mobileNav = useMobileNav()
@@ -28,12 +32,24 @@ const themeToggleValue = computed({
 })
 
 const assistantPillHover = ref(false)
-const userName = ref('Ross Andrew Paquette')
-const userInitials = ref('RP')
-const userEmail = ref('Ross@maropost.com')
-const userRole = ref('Super Admin')
 const profileStore = useUserProfile()
-const userAvatarUrl = computed(() => profileStore.avatarUrl)
+const trialLab = useTrialLabStore()
+
+// Identity follows the active account. Accounts created by a signup carry an
+// `owner`; the seed accounts have none and fall back to the demo identity, so
+// they render exactly as before. Initials come from a supplied name only —
+// never from the email address.
+const owner = computed(() => accountsStore.activeAccount.owner ?? null)
+const userName = computed(() => (owner.value ? (owner.value.name ?? owner.value.email) : 'Ross Andrew Paquette'))
+const userInitials = computed(() => (owner.value ? initialsOf(owner.value.name) : 'RP'))
+const userEmail = computed(() => owner.value?.email ?? 'Ross@maropost.com')
+const userRole = computed(() => owner.value?.role ?? 'Super Admin')
+const userAvatarUrl = computed(() => (owner.value ? '' : profileStore.avatarUrl))
+
+function initialsOf(name: string | null): string {
+  if (!name) return ''
+  return name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]!.toUpperCase()).join('')
+}
 const searchOpen = ref(false)
 const searchQuery = ref('')
 
@@ -43,8 +59,21 @@ const billingRoute = computed(() => ({ name: 'Billing' as const, params: { accou
 const profileRoute = computed(() => ({ name: 'SettingsGeneral' as const, params: { accountId: currentAccountId.value } }))
 const appsRoute = computed(() => ({ name: 'AppStore' as const, params: { accountId: currentAccountId.value } }))
 
-const accounts = computed(() => accountsStore.accounts)
+// While a Trial Lab session is active the switcher shows only that trial
+// workspace — a brand-new user has no other accounts to switch to.
+const accounts = computed(() => {
+  const session = trialLab.session
+  return session ? accountsStore.accounts.filter(a => a.id === session.accountId) : accountsStore.accounts
+})
 const activeAccountId = computed(() => accountsStore.activeId)
+
+function exitTrialSession() {
+  trialLab.endSession({ removeAccount: true })
+  profileStore.setName('Ross Andrew Paquette')
+  closeUserMenu()
+  toast.info('Trial session ended — back to the demo account')
+  router.push(`/accounts/${accountsStore.activeId}/dashboard`)
+}
 
 const accountSearch = ref('')
 const sortedFilteredAccounts = computed(() => {
@@ -174,6 +203,20 @@ function resetPlgState() {
   plgStore.resetAccount()
   plgPresetValue.value = null
   showAppbarNotice('PLG demo state reset for this account.')
+}
+
+// Catalog Co-Pilot demo state — entitlement scenarios for the Products Da Vinci
+// CTAs (per account, like the PLG state). Demo control, not product UI.
+const catalogCopilot = useCatalogCopilotStore()
+function onCatalogScenario(value: unknown) {
+  if (!isCatalogScenario(value)) return
+  catalogCopilot.setScenario(value)
+  const label = CATALOG_SCENARIOS.find(s => s.key === value)?.label ?? value
+  showAppbarNotice(`Catalog Co-Pilot demo state: ${label}`)
+}
+function resetCatalogDemo() {
+  catalogCopilot.reset()
+  showAppbarNotice('Catalog Co-Pilot demo state reset for this account.')
 }
 
 const createOpen = ref(false)
@@ -571,7 +614,7 @@ function onSearchKeydown(event: KeyboardEvent) {
             class="user-pill"
           >
             <v-avatar size="26" class="user-pill__avatar">
-              <v-img :src="userAvatarUrl" :alt="userName" cover>
+              <v-img v-if="userAvatarUrl" :src="userAvatarUrl" :alt="userName" cover>
                 <template #placeholder>
                   <div class="user-avatar-fallback user-avatar-fallback--sm">{{ userInitials }}</div>
                 </template>
@@ -579,6 +622,10 @@ function onSearchKeydown(event: KeyboardEvent) {
                   <div class="user-avatar-fallback user-avatar-fallback--sm">{{ userInitials }}</div>
                 </template>
               </v-img>
+              <div v-else class="user-avatar-fallback user-avatar-fallback--sm" aria-hidden="true">
+                <span v-if="userInitials">{{ userInitials }}</span>
+                <v-icon v-else size="14">user</v-icon>
+              </div>
             </v-avatar>
           </button>
         </template>
@@ -622,7 +669,7 @@ function onSearchKeydown(event: KeyboardEvent) {
               <button
                 type="button"
                 class="um-item um-start-trial"
-                @click="$router.push({ name: 'Signup' }); closeUserMenu()"
+                @click="$router.push('/signup'); closeUserMenu()"
               >
                 <v-avatar size="28" variant="tonal" color="primary" class="flex-shrink-0 um-item__avatar">
                   <v-icon size="15">plus</v-icon>
@@ -637,7 +684,7 @@ function onSearchKeydown(event: KeyboardEvent) {
             <div class="user-menu-card">
               <div class="um-header">
                 <v-avatar size="56" class="flex-shrink-0">
-                  <v-img :src="userAvatarUrl" :alt="userName" cover>
+                  <v-img v-if="userAvatarUrl" :src="userAvatarUrl" :alt="userName" cover>
                     <template #placeholder>
                       <div class="user-avatar-fallback user-avatar-fallback--lg">{{ userInitials }}</div>
                     </template>
@@ -645,10 +692,15 @@ function onSearchKeydown(event: KeyboardEvent) {
                       <div class="user-avatar-fallback user-avatar-fallback--lg">{{ userInitials }}</div>
                     </template>
                   </v-img>
+                  <div v-else class="user-avatar-fallback user-avatar-fallback--lg" aria-hidden="true">
+                    <span v-if="userInitials">{{ userInitials }}</span>
+                    <v-icon v-else size="26">user</v-icon>
+                  </div>
                 </v-avatar>
                 <div class="um-header__info">
                   <div class="um-header__name">{{ userName }}</div>
-                  <div class="um-header__email">{{ userEmail }}</div>
+                  <!-- An owner without a name shows the email as the name; don't print it twice. -->
+                  <div v-if="userEmail !== userName" class="um-header__email">{{ userEmail }}</div>
                   <v-chip size="x-small" variant="tonal" color="primary">{{ userRole }}</v-chip>
                 </div>
               </div>
@@ -757,6 +809,59 @@ function onSearchKeydown(event: KeyboardEvent) {
                     Reset
                   </v-btn>
                 </div>
+                <div class="um-item" role="group" aria-label="Catalog Co-Pilot demo state">
+                  <v-icon class="um-item__icon" size="20">flask-conical</v-icon>
+                  <div class="um-item__body">
+                    <div class="um-item__title">Catalog Co-Pilot demo</div>
+                    <div class="um-item__sub">Demo controls — not part of the product</div>
+                  </div>
+                </div>
+                <div class="um-plg-demo">
+                  <!-- Compact menu control: detail-free so the user menu can't
+                       resize under the pointer while it is open. -->
+                  <v-select
+                    :model-value="catalogCopilot.scenario"
+                    :items="CATALOG_SCENARIOS"
+                    item-title="label"
+                    item-value="key"
+                    hide-details
+                    label="Entitlement state"
+                    class="um-plg-demo__select"
+                    @update:model-value="onCatalogScenario"
+                  />
+                  <v-btn
+                    size="small"
+                    variant="text"
+                    class="text-none"
+                    :disabled="!catalogCopilot.hasDemoState"
+                    @click="resetCatalogDemo"
+                  >
+                    Reset
+                  </v-btn>
+                </div>
+                <div class="um-item" role="group" aria-label="Maropay demo state">
+                  <v-icon class="um-item__icon" size="20">flask-conical</v-icon>
+                  <div class="um-item__body">
+                    <div class="um-item__title">Maropay demo state</div>
+                    <div class="um-item__sub">Demo controls — not part of the product</div>
+                  </div>
+                </div>
+                <div class="um-plg-demo">
+                  <MaropayDemoControls class="flex-grow-1" />
+                </div>
+                <template v-if="trialLab.session">
+                  <div class="um-divider" />
+                  <div class="um-subheader">Trial Lab</div>
+                  <button type="button" class="um-item" @click="$router.push({ name: 'TrialLabIndex' }); closeUserMenu()">
+                    <v-icon class="um-item__icon" size="20">flask-conical</v-icon>
+                    <div class="um-item__body"><div class="um-item__title">Back to Trial Lab</div><div class="um-item__sub">Compare the four onboarding variants</div></div>
+                  </button>
+                  <button type="button" class="um-item" @click="exitTrialSession">
+                    <v-icon class="um-item__icon" size="20">door-open</v-icon>
+                    <div class="um-item__body"><div class="um-item__title">Exit trial session</div><div class="um-item__sub">Back to the demo account — removes this trial workspace</div></div>
+                  </button>
+                  <div class="um-divider" />
+                </template>
                 <button type="button" class="um-item um-item--danger" @click="openStub('Sign out'); closeUserMenu()">
                   <v-icon class="um-item__icon" size="20">log-out</v-icon>
                   <div class="um-item__body"><div class="um-item__title">Sign Out</div></div>

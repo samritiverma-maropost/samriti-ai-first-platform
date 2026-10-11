@@ -3,10 +3,13 @@ import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import MpDialog from '@/components/MpDialog.vue'
 import MpEmptyState from '@/components/MpEmptyState.vue'
+import MpFilterTabs from '@/components/MpFilterTabs.vue'
 import MpKpiCard from '@/components/MpKpiCard.vue'
+import MpListRow from '@/components/MpListRow.vue'
 import MpPageHeader from '@/components/MpPageHeader.vue'
 import MpSegmentedControl from '@/components/MpSegmentedControl.vue'
 import MpStatusChip from '@/components/MpStatusChip.vue'
+import MaropayMethodMark from '@/components/maropay/MaropayMethodMark.vue'
 import StorefrontPreview from '@/components/saleschannels/StorefrontPreview.vue'
 import { useToast } from '@/composables/useToast'
 import {
@@ -18,8 +21,14 @@ import {
   type ConnectedCloud,
 } from '@/stores/useSalesChannels'
 import { useCommerceStore } from '@/stores/useCommerce'
+import { useMaropayStore } from '@/stores/useMaropay'
+import { markForProvider } from '@/maropay/methodMarks'
+import type { MethodMarkId } from '@/maropay/methodMarks'
+import { PROVIDER_LABELS, STORE_ACTIVATION_LABELS } from '@/maropay/model'
+import { activeConnections, connectionOfferedMethods } from '@/maropay/providers'
 import { useRetailStore } from '@/stores/useRetail'
 import { useStoreThemesStore } from '@/stores/useStoreThemes'
+import { useStorefrontStore } from '@/stores/useStorefront'
 
 type MetricColor = 'primary' | 'retail' | 'commerce' | 'analytics' | 'contacts' | 'success' | 'warning'
 type DetailTab = 'overview' | 'settings' | 'apps' | 'ai' | 'activity'
@@ -35,6 +44,7 @@ type ProductTarget =
   | 'locations'
   | 'navigation'
   | 'pages'
+  | 'payments'
   | 'store_campaigns'
   | 'pos'
   | 'products'
@@ -88,7 +98,9 @@ interface ConnectedApp {
   name: string
   category: string
   initials: string
-  connected: boolean
+  /** A payment provider Maropay has a mark for wears it instead of initials. */
+  mark?: MethodMarkId
+  status: 'Connected' | 'Disconnected' | 'Needs setup'
 }
 
 interface BusinessInfoField {
@@ -150,11 +162,27 @@ const channelId = computed(() => {
 const channel = computed(() => salesChannelsStore.getChannel(accountId.value, channelId.value))
 const isWebStore = computed(() => channel.value?.type === 'web_store')
 
+const maropay = useMaropayStore()
+const maropayBinding = computed(() => maropay.bindingFor(channelId.value))
+/**
+ * Who takes this store's online payments: Maropay once it's live, and the
+ * merchant's own providers that offer something beside it (a store that never
+ * touched payments keeps its long-standing Stripe connection).
+ */
+const maropayLive = computed(() => maropayBinding.value?.activation === 'live')
+const otherProviders = computed(() => {
+  const setup = maropay.storeProvidersFor(channelId.value)
+  return activeConnections(setup).filter((c) => connectionOfferedMethods(c, setup).length > 0)
+})
+const paymentProviderNames = computed(() => [...(maropayLive.value ? ['Maropay'] : []), ...otherProviders.value.map((c) => PROVIDER_LABELS[c.kind])])
+
 // Published theme for this channel drives the preview dialog; falls back to the
 // default static storefront mock when no theme exists.
 const channelTheme = computed(() => (channelId.value ? storeThemesStore.themeForChannel(channelId.value) : undefined))
 const previewSections = computed(() => channelTheme.value?.templates.home)
 const previewStyles = computed(() => channelTheme.value?.styles)
+// A crawled store's own wordmark and menu in the preview header (Neelam-Store); others keep the sample header.
+const previewHeader = computed(() => useStorefrontStore().previewHeaderFor(channel.value))
 
 const locations = computed(() => {
   if (!channel.value?.offlineStore) return []
@@ -196,13 +224,13 @@ const primaryActionLabel = computed(() => {
 
 const secondaryActionLabel = computed(() => (isWebStore.value ? 'Preview' : 'Manage locations'))
 
-const detailTabs = computed<Array<{ label: string; value: DetailTab }>>(() => [
-  { label: 'Overview', value: 'overview' },
-  { label: 'Settings', value: 'settings' },
-  { label: 'Apps', value: 'apps' },
-  { label: 'AI & automation', value: 'ai' },
-  { label: 'Activity', value: 'activity' },
-])
+const detailTabs: Array<{ label: string; key: DetailTab }> = [
+  { label: 'Overview', key: 'overview' },
+  { label: 'Settings', key: 'settings' },
+  { label: 'Apps', key: 'apps' },
+  { label: 'AI & automation', key: 'ai' },
+  { label: 'Activity', key: 'activity' },
+]
 
 const headerMeta = computed(() => {
   const current = channel.value
@@ -332,6 +360,20 @@ const quickActions = computed<QuickAction[]>(() => {
   ]
 })
 
+function paymentsSetupItem(): SetupItem {
+  const binding = maropayBinding.value
+  const state = binding && !maropayLive.value ? maropay.storeStateFor(channelId.value) : null
+  const maropayNote = maropayLive.value ? 'Maropay live' : state ? `Maropay ${STORE_ACTIVATION_LABELS[state].toLowerCase()}` : 'Maropay not set up'
+  const names = paymentProviderNames.value
+  return {
+    id: 'online_payments',
+    title: 'Online payments',
+    description: names.length ? `${names.join(', ')} · ${maropayNote}` : 'No payment methods yet — shoppers can’t check out',
+    done: names.length > 0,
+    target: 'payments',
+  }
+}
+
 const setupChecklist = computed<SetupItem[]>(() => {
   const current = channel.value
   if (!current) return []
@@ -342,8 +384,7 @@ const setupChecklist = computed<SetupItem[]>(() => {
       { id: 'theme', title: 'Theme ready', description: current.webStore?.published ? 'Published theme is live' : 'Publish the draft theme', done: Boolean(current.webStore?.published), target: 'store_builder' },
       { id: 'merchandise', title: 'Merchandising connected', description: 'Search and recommendations are active', done: Boolean(current.webStore?.merchandiseConnected), target: 'merchandise' },
       { id: 'legal', title: 'Legal pages', description: 'Review privacy and returns', done: false, target: 'settings' },
-      { id: 'payments', title: 'Payment gateway', description: 'Connect Maropay at checkout', done: false, target: 'store_payments' },
-      { id: 'apps', title: 'Connected apps', description: 'Payments and fulfillment are connected', done: true, target: 'apps' },
+      paymentsSetupItem(),
     ]
   }
 
@@ -358,8 +399,11 @@ const setupChecklist = computed<SetupItem[]>(() => {
 
 const completedSetupCount = computed(() => setupChecklist.value.filter((item) => item.done).length)
 const pendingSetupItems = computed(() => setupChecklist.value.filter((item) => !item.done))
-const completedSetupItems = computed(() => setupChecklist.value.filter((item) => item.done))
-const visibleSetupItems = computed(() => pendingSetupItems.value.slice(0, 2))
+const completedSetupItems = computed(() => setupChecklist.value.filter((item) => item.done && item.id !== 'online_payments'))
+/** Online payments always shows first on a web store, done or not; the other pending items follow, two at a time. */
+const paymentsItem = computed(() => (isWebStore.value ? setupChecklist.value.find((item) => item.id === 'online_payments') ?? null : null))
+const paymentsMark = computed<MethodMarkId>(() => (maropayLive.value || !otherProviders.value.length ? 'maropay' : markForProvider(otherProviders.value[0]!.kind)))
+const visibleSetupItems = computed(() => pendingSetupItems.value.filter((item) => item.id !== 'online_payments').slice(0, 2))
 const setupProgress = computed(() => {
   if (!setupChecklist.value.length) return 0
   return Math.round((completedSetupCount.value / setupChecklist.value.length) * 100)
@@ -386,20 +430,30 @@ const activityItems = computed<ActivityItem[]>(() => {
 
 const overviewActivityItems = computed(() => activityItems.value.slice(0, 3))
 
+/** One row per payment provider on the store — Maropay first, live or still to set up. */
+const paymentApps = computed<ConnectedApp[]>(() => [
+  maropayLive.value
+    ? { id: 'payments-maropay', name: 'Maropay', category: 'Payments', initials: 'MA', mark: 'maropay', status: 'Connected' }
+    : { id: 'payments-maropay', name: 'Maropay', category: 'Payments · not live yet', initials: 'MA', mark: 'maropay', status: 'Needs setup' },
+  ...otherProviders.value.map((c): ConnectedApp => ({
+    id: `payments-${c.kind}`, name: PROVIDER_LABELS[c.kind], category: 'Payments', initials: PROVIDER_LABELS[c.kind].slice(0, 2).toUpperCase(), mark: markForProvider(c.kind), status: 'Connected',
+  })),
+])
+
 const connectedApps = computed<ConnectedApp[]>(() => {
   if (isWebStore.value) {
     return [
-      { id: 'maropay', name: 'Maropay', category: 'Payments', initials: 'MP', connected: true },
-      { id: 'shipstation', name: 'ShipStation', category: 'Fulfillment', initials: 'SH', connected: true },
-      { id: 'meta', name: 'Meta Ads', category: 'Ads', initials: 'ME', connected: true },
-      { id: 'google', name: 'Google Ads', category: 'Ads', initials: 'GO', connected: false },
+      ...paymentApps.value,
+      { id: 'shipstation', name: 'ShipStation', category: 'Fulfillment', initials: 'SH', status: 'Connected' },
+      { id: 'meta', name: 'Meta Ads', category: 'Ads', initials: 'ME', status: 'Connected' },
+      { id: 'google', name: 'Google Ads', category: 'Ads', initials: 'GO', status: 'Disconnected' },
     ]
   }
 
   return [
-    { id: 'stripe-terminal', name: 'Stripe Terminal', category: 'Payments', initials: 'ST', connected: true },
-    { id: 'tap-to-pay', name: 'Tap to Pay', category: 'Hardware', initials: 'TP', connected: true },
-    { id: 'xero', name: 'Xero', category: 'Accounting', initials: 'XE', connected: false },
+    { id: 'stripe-terminal', name: 'Stripe Terminal', category: 'Payments', initials: 'ST', status: 'Connected' },
+    { id: 'tap-to-pay', name: 'Tap to Pay', category: 'Hardware', initials: 'TP', status: 'Connected' },
+    { id: 'xero', name: 'Xero', category: 'Accounting', initials: 'XE', status: 'Disconnected' },
   ]
 })
 
@@ -533,6 +587,7 @@ function isAssistantAdded(id: string) {
 function setupActionLabel(item: SetupItem) {
   if (item.id === 'legal' || item.id === 'receipt') return 'Set up'
   if (item.id === 'payments') return 'Pair'
+  if (item.id === 'online_payments') return 'Set up'
   return 'Review'
 }
 
@@ -651,6 +706,10 @@ function runAction(target: ProductTarget) {
     router.push({ name: 'StoreAssets', params: { accountId: accountId.value, channelId: channelId.value } })
     return
   }
+  if (target === 'payments') {
+    router.push({ name: 'StorePayments', params: { accountId: accountId.value, channelId: channelId.value } })
+    return
+  }
   if (target === 'locations') {
     openLocations()
     return
@@ -689,66 +748,49 @@ function locationRoleText(locationId: string) {
 <template>
   <div class="sales-channel-detail h-100">
     <template v-if="channel">
-      <header class="sc-header">
-        <v-btn
-          class="sc-back-button text-none"
-          variant="outlined"
-          size="small"
-          prepend-icon="arrow-left"
-          :to="{ name: 'SalesChannels', params: { accountId } }"
-        >
-          All sales channels
-        </v-btn>
+      <!-- The store editor's rail carries the way back for a web store; a POS channel has no rail. -->
+      <MpPageHeader
+        :title="channel.name"
+        :subtitle="headerMeta.join(' · ')"
+        :back-to="isWebStore ? undefined : { name: 'SalesChannels', params: { accountId } }"
+      >
+        <template #title-append>
+          <MpStatusChip :status="CHANNEL_STATUS_LABELS[channel.status]" type="general" show-icon />
+        </template>
+        <template #actions>
+          <v-btn
+            variant="outlined"
+            class="text-none"
+            :prepend-icon="isWebStore ? 'external-link' : 'map-pin'"
+            @click="isWebStore ? openPreview() : openLocations()"
+          >
+            {{ secondaryActionLabel }}
+          </v-btn>
+          <v-btn variant="outlined" class="text-none" prepend-icon="sliders-horizontal" @click="openSettings">
+            Settings
+          </v-btn>
+          <v-btn
+            color="primary"
+            variant="flat"
+            class="text-none"
+            :prepend-icon="isWebStore ? 'palette' : 'tablet-smartphone'"
+            @click="openPrimaryAction"
+          >
+            {{ primaryActionLabel }}
+          </v-btn>
+        </template>
+        <template #tabs>
+          <MpFilterTabs
+            :model-value="activeTab"
+            :tabs="detailTabs"
+            aria-label="Channel sections"
+            controls-id="sc-tab-panel"
+            @update:model-value="activeTab = $event as DetailTab"
+          />
+        </template>
+      </MpPageHeader>
 
-        <div class="sc-header__row">
-          <div class="sc-header__identity">
-            <div class="sc-header__icon" :class="isWebStore ? 'sc-header__icon--web' : 'sc-header__icon--retail'">
-              <v-icon size="20">{{ isWebStore ? 'globe' : 'store' }}</v-icon>
-            </div>
-
-            <div class="sc-header__copy">
-              <div class="sc-header__title-row">
-                <h1 class="text-h5 font-weight-bold">{{ channel.name }}</h1>
-                <MpStatusChip :status="CHANNEL_STATUS_LABELS[channel.status]" type="general" size="md" show-icon />
-              </div>
-              <div class="sc-header__meta" aria-label="Channel metadata">
-                <span v-for="item in headerMeta" :key="item">{{ item }}</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="sc-header__actions">
-            <v-btn
-              variant="outlined"
-              class="text-none"
-              :prepend-icon="isWebStore ? 'external-link' : 'map-pin'"
-              @click="isWebStore ? openPreview() : openLocations()"
-            >
-              {{ secondaryActionLabel }}
-            </v-btn>
-            <v-btn variant="outlined" class="text-none" prepend-icon="sliders-horizontal" @click="openSettings">
-              Settings
-            </v-btn>
-            <v-btn
-              color="primary"
-              variant="flat"
-              class="text-none"
-              :prepend-icon="isWebStore ? 'palette' : 'tablet-smartphone'"
-              @click="openPrimaryAction"
-            >
-              {{ primaryActionLabel }}
-            </v-btn>
-          </div>
-        </div>
-      </header>
-
-      <v-tabs v-model="activeTab" class="sc-tabs" density="compact" color="primary" show-arrows>
-        <v-tab v-for="tab in detailTabs" :key="tab.value" :value="tab.value" class="text-none">
-          {{ tab.label }}
-        </v-tab>
-      </v-tabs>
-
-      <section v-if="activeTab === 'overview'" class="sc-tab-panel">
+      <section v-if="activeTab === 'overview'" id="sc-tab-panel" class="sc-tab-panel" role="tabpanel">
         <div class="sc-overview-grid">
           <v-card flat border rounded="lg" class="retail-widget-card sc-hero-card">
             <div class="retail-widget-header">
@@ -767,7 +809,7 @@ function locationRoleText(locationId: string) {
             </div>
 
             <div class="retail-widget-body">
-              <StorefrontPreview v-if="isWebStore" :sections="previewSections" :styles="previewStyles" />
+              <StorefrontPreview v-if="isWebStore" :sections="previewSections" :styles="previewStyles" :brand="previewHeader.brand" :menu="previewHeader.menu" />
 
               <div v-else class="sc-retail-preview sc-retail-preview--hero" aria-label="Retail location summary">
                 <button
@@ -810,9 +852,19 @@ function locationRoleText(locationId: string) {
               </div>
             </div>
             <div class="retail-widget-progress">
-              <v-progress-linear :model-value="setupProgress" height="5" rounded color="primary" />
+              <v-progress-linear :model-value="setupProgress" height="5" rounded color="primary" :aria-label="`Setup ${completedSetupCount} of ${setupChecklist.length} complete`" />
             </div>
             <div class="retail-widget-body sc-setup-body">
+              <div v-if="paymentsItem" class="sc-setup-row" :class="{ 'sc-setup-row--done': paymentsItem.done }">
+                <MaropayMethodMark :mark="paymentsMark" size="sm" decorative />
+                <div class="min-width-0">
+                  <strong>{{ paymentsItem.title }}</strong>
+                  <span>{{ paymentsItem.description }}</span>
+                </div>
+                <v-btn size="small" color="primary" :variant="paymentsItem.done ? 'text' : 'tonal'" class="text-none" @click="runAction(paymentsItem.target)">
+                  {{ paymentsItem.done ? 'Manage' : 'Set up' }}
+                </v-btn>
+              </div>
               <div v-if="visibleSetupItems.length" class="sc-setup-list">
                 <div v-for="item in visibleSetupItems" :key="item.id" class="sc-setup-row">
                   <v-icon size="16">circle-dashed</v-icon>
@@ -825,7 +877,7 @@ function locationRoleText(locationId: string) {
                   </v-btn>
                 </div>
               </div>
-              <div v-else class="sc-setup-empty">
+              <div v-else-if="!paymentsItem || paymentsItem.done" class="sc-setup-empty">
                 <v-icon size="16" color="success">circle-check</v-icon>
                 <span>No urgent setup items.</span>
               </div>
@@ -916,7 +968,7 @@ function locationRoleText(locationId: string) {
         </v-card>
       </section>
 
-      <section v-else-if="activeTab === 'settings'" class="sc-tab-panel">
+      <section v-else-if="activeTab === 'settings'" id="sc-tab-panel" class="sc-tab-panel" role="tabpanel">
         <v-card flat border rounded="lg" class="retail-widget-card">
           <div class="retail-widget-header">
             <div>
@@ -928,12 +980,12 @@ function locationRoleText(locationId: string) {
             </v-btn>
           </div>
           <div class="retail-widget-body">
-            <div class="sc-business-grid">
-              <div v-for="field in businessInfoFields" :key="field.label" class="sc-business-field">
-                <span>{{ field.label }}</span>
-                <strong>{{ field.value }}</strong>
+            <dl class="mp-label-value sc-business-grid">
+              <div v-for="field in businessInfoFields" :key="field.label">
+                <dt>{{ field.label }}</dt>
+                <dd>{{ field.value }}</dd>
               </div>
-            </div>
+            </dl>
             <div v-if="isWebStore" class="sc-favicon-row">
               <div class="sc-favicon-row__thumb">
                 <v-icon size="20">image</v-icon>
@@ -950,7 +1002,7 @@ function locationRoleText(locationId: string) {
         </v-card>
       </section>
 
-      <section v-else-if="activeTab === 'apps'" class="sc-tab-panel">
+      <section v-else-if="activeTab === 'apps'" id="sc-tab-panel" class="sc-tab-panel" role="tabpanel">
         <v-card flat border rounded="lg" class="retail-widget-card">
           <div class="retail-widget-header">
             <div>
@@ -961,20 +1013,21 @@ function locationRoleText(locationId: string) {
               Browse apps
             </v-btn>
           </div>
-          <div class="sc-app-list sc-app-list--wide">
-            <div v-for="app in connectedApps" :key="app.id" class="sc-app-row">
-              <div class="sc-app-row__initials">{{ app.initials }}</div>
-              <div class="min-width-0">
-                <strong>{{ app.name }}</strong>
-                <span>{{ app.category }}</span>
-              </div>
-              <span class="sc-status-dot" :class="{ 'sc-status-dot--off': !app.connected }" />
-            </div>
+          <div class="sc-app-list sc-app-list--wide" role="list">
+            <MpListRow v-for="app in connectedApps" :key="app.id" variant="boxed" role="listitem" :title="app.name" :subtitle="app.category">
+              <template #lead>
+                <MaropayMethodMark v-if="app.mark" :mark="app.mark" size="md" decorative />
+                <span v-else class="sc-app-row__initials" aria-hidden="true">{{ app.initials }}</span>
+              </template>
+              <template #trailing>
+                <MpStatusChip :status="app.status" type="connection" size="sm" show-icon />
+              </template>
+            </MpListRow>
           </div>
         </v-card>
       </section>
 
-      <section v-else-if="activeTab === 'ai'" class="sc-tab-panel">
+      <section v-else-if="activeTab === 'ai'" id="sc-tab-panel" class="sc-tab-panel" role="tabpanel">
         <v-card flat border rounded="lg" class="retail-widget-card">
           <div class="retail-widget-header">
             <div>
@@ -1049,7 +1102,7 @@ function locationRoleText(locationId: string) {
         </v-card>
       </section>
 
-      <section v-else class="sc-tab-panel">
+      <section v-else id="sc-tab-panel" class="sc-tab-panel" role="tabpanel">
         <v-card flat border rounded="lg" class="retail-widget-card">
           <div class="retail-widget-header">
             <div class="retail-widget-header__title">Activity</div>
@@ -1092,7 +1145,7 @@ function locationRoleText(locationId: string) {
         </template>
 
         <div class="sc-preview-dialog__body">
-          <StorefrontPreview :sections="previewSections" :styles="previewStyles" :device="previewDevice" />
+          <StorefrontPreview :sections="previewSections" :styles="previewStyles" :brand="previewHeader.brand" :menu="previewHeader.menu" :device="previewDevice" />
         </div>
       </MpDialog>
     </template>
@@ -1125,112 +1178,14 @@ function locationRoleText(locationId: string) {
   min-width: 0;
 }
 
-.sc-header {
-  display: flex;
-  flex-direction: column;
-  gap: var(--mp-space-16);
-}
-
-.sc-back-button {
-  width: fit-content;
+/* The page scrolls as a whole; nothing in its column shrinks (the tabs would collapse to 0). */
+.sales-channel-detail > * {
+  flex-shrink: 0;
 }
 
 .sc-preview-dialog__body {
   padding: var(--mp-space-20);
   background: var(--surface-secondary);
-}
-
-.sc-header__row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: var(--mp-space-20);
-}
-
-.sc-header__identity {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--mp-space-14);
-  min-width: 0;
-}
-
-.sc-header__icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  width: var(--mp-space-48);
-  height: var(--mp-space-48);
-  border-radius: var(--r-section);
-}
-
-.sc-header__icon--web {
-  background: var(--accent-soft);
-  color: var(--accent-ink);
-}
-
-.sc-header__icon--retail {
-  background: color-mix(in oklch, var(--cloud-retail-accent) 12%, transparent);
-  color: var(--cloud-retail-text);
-}
-
-.sc-header__copy {
-  min-width: 0;
-}
-
-.sc-header__title-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--mp-space-8);
-  min-width: 0;
-}
-
-.sc-header__title-row h1 {
-  margin: 0;
-  color: var(--text-primary);
-  line-height: 1.2;
-}
-
-.sc-header__meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--mp-space-4) var(--mp-space-12);
-  margin-top: var(--mp-space-8);
-  color: var(--muted);
-  font-size: var(--mp-fontSize-13);
-  font-weight: var(--mp-fontWeight-medium);
-}
-
-.sc-header__meta span {
-  display: inline-flex;
-  align-items: center;
-  min-width: 0;
-}
-
-.sc-header__actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: var(--mp-space-8);
-}
-
-.sc-tabs {
-  min-width: 0;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.sc-tabs :deep(.v-slide-group__content) {
-  gap: var(--mp-space-4);
-}
-
-.sc-tabs :deep(.v-tab) {
-  padding: 0 var(--mp-space-10);
-  color: var(--muted);
-  font-size: var(--mp-fontSize-13);
-  font-weight: var(--mp-fontWeight-semibold);
 }
 
 .sc-tab-panel {
@@ -1303,8 +1258,13 @@ function locationRoleText(locationId: string) {
   background: color-mix(in oklch, var(--accent) 5%, var(--surface-primary));
 }
 
+.sc-setup-row--done {
+  border-color: var(--border-subtle);
+  background: var(--surface-primary);
+}
+
 .sc-setup-row strong,
-.sc-setup-row span,
+.sc-setup-row div > span,
 .sc-setup-empty span {
   display: block;
   overflow: hidden;
@@ -1319,7 +1279,7 @@ function locationRoleText(locationId: string) {
   white-space: nowrap;
 }
 
-.sc-setup-row span,
+.sc-setup-row div > span,
 .sc-setup-empty span {
   margin-top: var(--mp-space-2);
   color: var(--muted);
@@ -1464,38 +1424,7 @@ function locationRoleText(locationId: string) {
 }
 
 .sc-business-grid {
-  display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--mp-space-16) var(--mp-space-20);
-}
-
-.sc-business-field {
-  min-width: 0;
-}
-
-.sc-business-field span,
-.sc-business-field strong {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sc-business-field span {
-  color: var(--muted);
-  font-size: var(--mp-fontSize-11);
-  font-weight: var(--mp-fontWeight-bold);
-  letter-spacing: 0.1em;
-  line-height: 1.2;
-  text-transform: uppercase;
-}
-
-.sc-business-field strong {
-  margin-top: var(--mp-space-4);
-  color: var(--text-primary);
-  font-size: var(--mp-fontSize-14);
-  font-weight: var(--mp-fontWeight-bold);
-  line-height: 1.3;
 }
 
 .sc-favicon-row,
@@ -1708,16 +1637,6 @@ function locationRoleText(locationId: string) {
   padding: 0 var(--mp-space-20) var(--mp-space-20);
 }
 
-.sc-app-row {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--mp-space-12);
-  padding: var(--mp-space-10) var(--mp-space-12);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--r-section);
-}
-
 .sc-app-row__initials {
   display: inline-flex;
   align-items: center;
@@ -1731,44 +1650,9 @@ function locationRoleText(locationId: string) {
   font-weight: var(--mp-fontWeight-bold);
 }
 
-.sc-app-row strong,
-.sc-app-row span {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sc-app-row strong {
-  color: var(--text-primary);
-  font-size: var(--mp-fontSize-13);
-  font-weight: var(--mp-fontWeight-bold);
-}
-
-.sc-app-row span {
-  color: var(--muted);
-  font-size: var(--mp-fontSize-12);
-}
-
-.sc-status-dot {
-  width: var(--mp-space-8);
-  height: var(--mp-space-8);
-  border-radius: var(--r-pill);
-  background: var(--pos);
-}
-
-.sc-status-dot--off {
-  background: color-mix(in oklch, var(--text-primary) 18%, transparent);
-}
-
 @media (max-width: 1180px) {
-  .sc-header__row,
   .sc-overview-grid {
     grid-template-columns: 1fr;
-  }
-
-  .sc-header__actions {
-    justify-content: flex-start;
   }
 
   .sc-action-grid,
@@ -1781,20 +1665,6 @@ function locationRoleText(locationId: string) {
 @media (max-width: 760px) {
   .sales-channel-detail {
     gap: var(--mp-space-20);
-  }
-
-  .sc-header__identity {
-    gap: var(--mp-space-12);
-  }
-
-  .sc-header__actions {
-    align-items: stretch;
-    flex-direction: column;
-    width: 100%;
-  }
-
-  .sc-header__actions :deep(.v-btn) {
-    width: 100%;
   }
 
   .sc-action-grid,
@@ -1812,10 +1682,6 @@ function locationRoleText(locationId: string) {
 }
 
 @media (max-width: 520px) {
-  .sc-header__identity {
-    flex-direction: column;
-  }
-
   .sc-setup-row,
   .sc-hero-url {
     grid-template-columns: auto minmax(0, 1fr);

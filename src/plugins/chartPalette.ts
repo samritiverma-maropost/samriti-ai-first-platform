@@ -73,6 +73,136 @@ import {
   mp_color_chart_dark_grayBlue_series4,
   mp_color_chart_dark_grayBlue_series5,
   mp_color_chart_dark_grayBlue_series6,
+  mp_color_chart_light_merchant_axis1,
+  mp_color_chart_light_merchant_axis2,
+  mp_color_chart_light_merchant_axis3,
+  mp_color_chart_light_merchant_axis4,
+  mp_color_chart_light_merchant_axis5,
+  mp_color_chart_light_merchant_comparison,
+  mp_color_chart_light_merchant_negative,
+  mp_color_chart_light_merchant_neutral,
+  mp_color_chart_light_merchant_positive,
+  mp_color_chart_light_merchant_series1,
+  mp_color_chart_light_merchant_series2,
+  mp_color_chart_light_merchant_series3,
+  mp_color_chart_light_merchant_series4,
+  mp_color_chart_light_merchant_series5,
+  mp_color_chart_light_merchant_series6,
+  mp_color_chart_light_merchant_warning,
+  mp_color_chart_dark_merchant_axis1,
+  mp_color_chart_dark_merchant_axis2,
+  mp_color_chart_dark_merchant_axis3,
+  mp_color_chart_dark_merchant_axis4,
+  mp_color_chart_dark_merchant_axis5,
+  mp_color_chart_dark_merchant_comparison,
+  mp_color_chart_dark_merchant_series1,
+  mp_color_chart_dark_merchant_series2,
+  mp_color_chart_dark_merchant_series3,
+  mp_color_chart_dark_merchant_series4,
+  mp_color_chart_dark_merchant_series5,
+  mp_color_chart_dark_merchant_series6,
+  mp_color_chart_light_shopify_axis1,
+  mp_color_chart_light_shopify_axis2,
+  mp_color_chart_light_shopify_axis3,
+  mp_color_chart_light_shopify_axis4,
+  mp_color_chart_light_shopify_axis5,
+  mp_color_chart_light_shopify_axisLabel,
+  mp_color_chart_light_shopify_comparison,
+  mp_color_chart_light_shopify_crosshair,
+  mp_color_chart_light_shopify_grid,
+  mp_color_chart_light_shopify_legendLabel,
+  mp_color_chart_light_shopify_negative,
+  mp_color_chart_light_shopify_neutral,
+  mp_color_chart_light_shopify_positive,
+  mp_color_chart_light_shopify_series1,
+  mp_color_chart_light_shopify_series2,
+  mp_color_chart_light_shopify_series3,
+  mp_color_chart_light_shopify_series4,
+  mp_color_chart_light_shopify_series5,
+  mp_color_chart_light_shopify_series6,
+  mp_color_chart_light_shopify_tooltipBackground,
+  mp_color_chart_light_shopify_tooltipText,
+  mp_color_chart_light_shopify_warning,
+  mp_color_chart_dark_shopify_axis1,
+  mp_color_chart_dark_shopify_axis2,
+  mp_color_chart_dark_shopify_axis3,
+  mp_color_chart_dark_shopify_axis4,
+  mp_color_chart_dark_shopify_axis5,
+  mp_color_chart_dark_shopify_comparison,
+  mp_color_chart_dark_shopify_series1,
+  mp_color_chart_dark_shopify_series2,
+  mp_color_chart_dark_shopify_series3,
+  mp_color_chart_dark_shopify_series4,
+  mp_color_chart_dark_shopify_series5,
+  mp_color_chart_dark_shopify_series6,
+  mp_color_chart_light_bloomreach_axis1,
+  mp_color_chart_light_bloomreach_axis2,
+  mp_color_chart_light_bloomreach_axis3,
+  mp_color_chart_light_bloomreach_axis4,
+  mp_color_chart_light_bloomreach_axis5,
+  mp_color_chart_light_bloomreach_axisLabel,
+  mp_color_chart_light_bloomreach_comparison,
+  mp_color_chart_light_bloomreach_crosshair,
+  mp_color_chart_light_bloomreach_grid,
+  mp_color_chart_light_bloomreach_legendLabel,
+  mp_color_chart_light_bloomreach_negative,
+  mp_color_chart_light_bloomreach_neutral,
+  mp_color_chart_light_bloomreach_positive,
+  mp_color_chart_light_bloomreach_series1,
+  mp_color_chart_light_bloomreach_series2,
+  mp_color_chart_light_bloomreach_series3,
+  mp_color_chart_light_bloomreach_series4,
+  mp_color_chart_light_bloomreach_series5,
+  mp_color_chart_light_bloomreach_series6,
+  mp_color_chart_light_bloomreach_tooltipBackground,
+  mp_color_chart_light_bloomreach_tooltipText,
+  mp_color_chart_light_bloomreach_warning,
+  mp_color_chart_dark_bloomreach_axis1,
+  mp_color_chart_dark_bloomreach_axis2,
+  mp_color_chart_dark_bloomreach_axis3,
+  mp_color_chart_dark_bloomreach_axis4,
+  mp_color_chart_dark_bloomreach_axis5,
+  mp_color_chart_dark_bloomreach_comparison,
+  mp_color_chart_dark_bloomreach_series1,
+  mp_color_chart_dark_bloomreach_series2,
+  mp_color_chart_dark_bloomreach_series3,
+  mp_color_chart_dark_bloomreach_series4,
+  mp_color_chart_dark_bloomreach_series5,
+  mp_color_chart_dark_bloomreach_series6,
+  mp_color_chart_light_stripe_axis1,
+  mp_color_chart_light_stripe_axis2,
+  mp_color_chart_light_stripe_axis3,
+  mp_color_chart_light_stripe_axis4,
+  mp_color_chart_light_stripe_axis5,
+  mp_color_chart_light_stripe_axisLabel,
+  mp_color_chart_light_stripe_comparison,
+  mp_color_chart_light_stripe_crosshair,
+  mp_color_chart_light_stripe_grid,
+  mp_color_chart_light_stripe_legendLabel,
+  mp_color_chart_light_stripe_negative,
+  mp_color_chart_light_stripe_neutral,
+  mp_color_chart_light_stripe_positive,
+  mp_color_chart_light_stripe_series1,
+  mp_color_chart_light_stripe_series2,
+  mp_color_chart_light_stripe_series3,
+  mp_color_chart_light_stripe_series4,
+  mp_color_chart_light_stripe_series5,
+  mp_color_chart_light_stripe_series6,
+  mp_color_chart_light_stripe_tooltipBackground,
+  mp_color_chart_light_stripe_tooltipText,
+  mp_color_chart_light_stripe_warning,
+  mp_color_chart_dark_stripe_axis1,
+  mp_color_chart_dark_stripe_axis2,
+  mp_color_chart_dark_stripe_axis3,
+  mp_color_chart_dark_stripe_axis4,
+  mp_color_chart_dark_stripe_axis5,
+  mp_color_chart_dark_stripe_comparison,
+  mp_color_chart_dark_stripe_series1,
+  mp_color_chart_dark_stripe_series2,
+  mp_color_chart_dark_stripe_series3,
+  mp_color_chart_dark_stripe_series4,
+  mp_color_chart_dark_stripe_series5,
+  mp_color_chart_dark_stripe_series6,
   mp_color_chart_light_grayBlueGold_axis1,
   mp_color_chart_light_grayBlueGold_axis2,
   mp_color_chart_light_grayBlueGold_axis3,
@@ -119,6 +249,17 @@ export type ChartPalette =
   | 'grayBlueGold'
   | 'social'
   | 'ocean'
+  /** The middle tier between flat and gradient — Shopify-style solid marks with a
+      soft same-hue fade, gray secondary, dotted previous period (Ross, Sept 2026). */
+  | 'merchant'
+  /** 1:1 port of the Shopify admin's Polaris Viz Light theme (marks + chrome). */
+  | 'shopify'
+  /** `shopify` marks plus the Shopify admin page + card chrome (`skin: 'polaris'`), dashboards only. */
+  | 'shopifyAdmin'
+  /** Bloomreach Engagement look (navy / slate / purple) with Ocean cyan in place of their yellow; chart marks + card chrome. */
+  | 'bloomreach'
+  /** Stripe Dashboard look (hairlines, min/max axes, no legend) on Maropost primary; chart marks + card chrome. */
+  | 'stripe'
   /** Gradient exploration variants — each base palette with the emboss/duotone
       treatment, shown on /dashboard-gradient (`socialGradient` is its default). */
   | 'socialGradient'
@@ -154,22 +295,63 @@ export interface ChartTreatment {
     companionDash: number
     /** Single-series line strokes run through the axis ramp. */
     gradientLine: boolean
+    /** Apex stroke.lineCap; 'round' turns a short comparison dash into dots. */
+    lineCap?: 'butt' | 'round'
   }
-  comparison: { color?: string; dash: number; fillOpacity: number }
+  comparison: {
+    color?: string
+    dash: number
+    fillOpacity: number
+    /** Raw SVG stroke-dasharray patched onto the comparison paths after render —
+        Apex accepts one number per series, so a Polaris "0.1 4" dot needs this. */
+    dashPattern?: string
+  }
   area: { fill: 'gradient' | 'solid'; opacityFrom: number; opacityTo: number }
   bar: {
     radius: number
     columnWidthSingle: string
     columnWidthGrouped: string
-    fill: 'solid' | 'tint-gradient' | 'axis-gradient'
+    /** 'soft-gradient' = same hue, opacity 1 → 0.72 down the bar; no hue shift, no gloss. */
+    fill: 'solid' | 'tint-gradient' | 'axis-gradient' | 'soft-gradient'
     floatingLabels: boolean
   }
   grid: { show: boolean; dashArray: number; xLines: boolean; yLines: boolean; color?: string }
-  axes: { yLabelsOnTimeseries: boolean }
+  axes: {
+    yLabelsOnTimeseries: boolean
+    labelFontSize?: number
+    labelFontWeight?: number
+    /** Case of the compact k/m/b suffix on the y-axis ("$3k" vs Polaris's "$3K"). */
+    compactUnitCase?: 'lower' | 'upper'
+    /** 'ends' keeps only the first and last category label (Stripe's "3 Dec … Today"). */
+    xLabels?: 'all' | 'ends'
+    /** Apex yaxis.tickAmount; 1 = min and max only. */
+    yTickAmount?: number
+    /** Draw the x-axis line (the only rule Stripe keeps when gridlines are off). */
+    baseline?: boolean
+  }
   crosshair: { show: boolean; dash: number; color?: string }
   markers: { hoverSize: number; lastPoint: boolean }
-  legend: { markerShape: 'square' | 'circle'; markerSize: number; hoverHighlight: boolean }
-  donut: { size: string; fill: 'solid' | 'gradient'; strokeWidth: number; showDataLabels: boolean }
+  legend: {
+    markerShape: 'square' | 'circle' | 'line'
+    markerSize: number
+    hoverHighlight: boolean
+    position?: 'top' | 'bottom'
+    align?: 'left' | 'center' | 'right'
+    fontSize?: number
+    /** Custom legend markers: a 12×2 line per series, three dots for the comparison series. */
+    comparisonMarker?: 'dots'
+    /** false hides the legend entirely (Stripe); default shows it. */
+    show?: boolean
+  }
+  donut: {
+    size: string
+    fill: 'solid' | 'gradient'
+    strokeWidth: number
+    showDataLabels: boolean
+    /** Apex plotOptions.pie.donut corner radius / slice gap; widgets default to 8 / 4. */
+    cornerRadius?: number
+    spacing?: number
+  }
   /** Hand-rolled SVG family (DtGauge / DtRingDonut / stacked bar). */
   svg: { shade: 'flat' | 'tint' }
   kpiSpark: { color?: string; fillOpacity: number }
@@ -204,6 +386,12 @@ export interface ChartTheme {
    * here instead of the legacy `gradientMarks`/`flatMarks` branches.
    */
   treatment?: ChartTreatment
+  /**
+   * The option also restyles the dashboard page and cards. Read by
+   * DashboardChartWidget (headline) and DashboardGrid (gap); the CSS side keys
+   * off the mirrored `<html data-chart>` in shopify-admin-skin.css.
+   */
+  skin?: 'polaris' | 'bloomreach' | 'stripe'
 }
 
 /**
@@ -316,6 +504,78 @@ const SOCIAL_TREATMENT = oceanLineTreatment(mp_color_chart_light_social_series2)
 const SOCIAL_GRADIENT_TREATMENT = oceanLineTreatment(mp_color_chart_light_social_series2)
 
 /**
+ * The middle tier Ross asked for (Sept 2026): neither flat nor glossy. Solid
+ * marks with a soft same-hue fade down each bar, a light area wash under the
+ * line, a thick solid ring, solid faint y-gridlines and a dotted gray previous
+ * period — the Shopify admin grammar. No duotone companion anywhere.
+ */
+const MERCHANT_TREATMENT = makeTreatment({
+  stroke: { curve: 'smooth', width: 2, companionWidth: 2, companionDash: 0, gradientLine: false, lineCap: 'round' },
+  comparison: { color: mp_color_chart_light_merchant_comparison, dash: 3, fillOpacity: 0 },
+  area: { fill: 'gradient', opacityFrom: 0.28, opacityTo: 0 },
+  bar: { radius: 3, columnWidthSingle: '45%', columnWidthGrouped: '68%', fill: 'soft-gradient', floatingLabels: false },
+  grid: { show: true, dashArray: 0, xLines: false, yLines: true },
+  axes: { yLabelsOnTimeseries: true },
+  crosshair: { show: true, dash: 0 },
+  markers: { hoverSize: 5, lastPoint: false },
+  legend: { markerShape: 'circle', markerSize: 8, hoverHighlight: true },
+  donut: { size: '72%', fill: 'solid', strokeWidth: 0, showDataLabels: false },
+  svg: { shade: 'tint' },
+  kpiSpark: { fillOpacity: 0.14 },
+  effects: { dropShadow: false },
+  states: { hoverFilter: 'none', hoverFilterValue: 0, dimmedOpacity: 0.25 },
+  posNeg: {
+    positive: mp_color_chart_light_merchant_positive,
+    negative: mp_color_chart_light_merchant_negative,
+    warning: mp_color_chart_light_merchant_warning,
+    neutral: mp_color_chart_light_merchant_neutral,
+  },
+})
+
+/**
+ * 1:1 port of the Shopify admin's chart look, read from the Polaris Viz source
+ * (LIGHT_THEME + constants): 2px round-capped line, area at ≈0.06 fading to 0,
+ * previous period as a gray "0.1 4" dotted line with no area, hover point r5,
+ * gray-20 horizontal grid, gray-40 crosshair, 11px gray-100 labels, bottom-left
+ * legend with line/dots markers, bars radius 3, donut ring ≈ height/10 with
+ * 2px corners. Only Apex-imposed deviation: 'smooth' stands in for
+ * Polaris's curveStepRounded.
+ */
+const SHOPIFY_TREATMENT = makeTreatment({
+  stroke: { curve: 'smooth', width: 2, companionWidth: 2, companionDash: 0, gradientLine: false, lineCap: 'round' },
+  comparison: { color: mp_color_chart_light_shopify_comparison, dash: 4, dashPattern: '0.1 4', fillOpacity: 0 },
+  area: { fill: 'gradient', opacityFrom: 0.07, opacityTo: 0 },
+  bar: { radius: 3, columnWidthSingle: '60%', columnWidthGrouped: '80%', fill: 'solid', floatingLabels: false },
+  grid: { show: true, dashArray: 0, xLines: false, yLines: true, color: mp_color_chart_light_shopify_grid },
+  axes: { yLabelsOnTimeseries: true, labelFontSize: 11, labelFontWeight: 400, compactUnitCase: 'upper' },
+  crosshair: { show: true, dash: 0, color: mp_color_chart_light_shopify_crosshair },
+  markers: { hoverSize: 5, lastPoint: false },
+  legend: { markerShape: 'line', markerSize: 12, hoverHighlight: true, position: 'bottom', align: 'left', fontSize: 11, comparisonMarker: 'dots' },
+  donut: { size: '77%', fill: 'solid', strokeWidth: 0, showDataLabels: false, cornerRadius: 2, spacing: 4 },
+  svg: { shade: 'flat' },
+  kpiSpark: { fillOpacity: 0.2 },
+  effects: { dropShadow: false },
+  states: { hoverFilter: 'none', hoverFilterValue: 0, dimmedOpacity: 0.3 },
+  posNeg: {
+    positive: mp_color_chart_light_shopify_positive,
+    negative: mp_color_chart_light_shopify_negative,
+    warning: mp_color_chart_light_shopify_warning,
+    neutral: mp_color_chart_light_shopify_neutral,
+  },
+})
+
+/** Polaris Viz Light chrome: gray-100 labels, gray-20 grid, white tooltip with gray-160 text. */
+const SHOPIFY_LIGHT_CHROME: ChartChrome = {
+  axisLabel: mp_color_chart_light_shopify_axisLabel,
+  legendLabel: mp_color_chart_light_shopify_legendLabel,
+  grid: mp_color_chart_light_shopify_grid,
+  tooltipTheme: 'light',
+  tooltipBackground: mp_color_chart_light_shopify_tooltipBackground,
+  tooltipText: mp_color_chart_light_shopify_tooltipText,
+  tooltipBorder: 'transparent',
+}
+
+/**
  * Turn any base treatment into its gradient/emboss variant: bars route into the
  * gloss branch ('solid' early-returns before it in DashboardChartWidget's
  * treatmentFill, so any gradient fill value works), donut slices take the
@@ -342,6 +602,141 @@ const OCEAN_GRADIENT_TREATMENT = embossTreatment(oceanLineTreatment(mp_color_cha
  * Mode-aware chart themes. Each palette carries light and dark series/axis arrays
  * sourced from generated tokens; chrome (labels, grid, tooltip) is mode-specific.
  */
+/** `shopify` light/dark, hoisted so `shopifyAdmin` can reuse them verbatim. */
+const SHOPIFY_LIGHT: ChartTheme = {
+  label: 'Shopify (Polaris Viz)',
+  series: [
+    mp_color_chart_light_shopify_series1,
+    mp_color_chart_light_shopify_series2,
+    mp_color_chart_light_shopify_series3,
+    mp_color_chart_light_shopify_series4,
+    mp_color_chart_light_shopify_series5,
+    mp_color_chart_light_shopify_series6,
+  ],
+  axis: [
+    mp_color_chart_light_shopify_axis1,
+    mp_color_chart_light_shopify_axis2,
+    mp_color_chart_light_shopify_axis3,
+    mp_color_chart_light_shopify_axis4,
+    mp_color_chart_light_shopify_axis5,
+  ],
+  gradientMarks: false,
+  comparisonColor: mp_color_chart_light_shopify_comparison,
+  chrome: cloneChrome(SHOPIFY_LIGHT_CHROME),
+  treatment: SHOPIFY_TREATMENT,
+}
+// PROVISIONAL — light-only review; Polaris Viz ships a DARK_THEME if dark tuning is wanted
+const SHOPIFY_DARK: ChartTheme = {
+  label: 'Shopify (Polaris Viz)',
+  series: [
+    mp_color_chart_dark_shopify_series1,
+    mp_color_chart_dark_shopify_series2,
+    mp_color_chart_dark_shopify_series3,
+    mp_color_chart_dark_shopify_series4,
+    mp_color_chart_dark_shopify_series5,
+    mp_color_chart_dark_shopify_series6,
+  ],
+  axis: [
+    mp_color_chart_dark_shopify_axis1,
+    mp_color_chart_dark_shopify_axis2,
+    mp_color_chart_dark_shopify_axis3,
+    mp_color_chart_dark_shopify_axis4,
+    mp_color_chart_dark_shopify_axis5,
+  ],
+  gradientMarks: false,
+  comparisonColor: mp_color_chart_dark_shopify_comparison,
+  chrome: cloneChrome(DARK_CHROME),
+  treatment: SHOPIFY_TREATMENT,
+}
+
+/**
+ * Bloomreach Engagement's analytics grammar (Project performance / Reports),
+ * read from their public docs: 2px straight-segment lines with no area, flat
+ * bars with value labels, solid light gridlines, bottom-centre legend, navy
+ * tooltip. Their yellow primary becomes Maropost's Ocean cyan; purple stays.
+ */
+const BLOOMREACH_TREATMENT = makeTreatment({
+  stroke: { curve: 'straight', width: 2, companionWidth: 2, companionDash: 0, gradientLine: false },
+  comparison: { color: mp_color_chart_light_bloomreach_comparison, dash: 5, fillOpacity: 0 },
+  area: { fill: 'solid', opacityFrom: 0, opacityTo: 0 },
+  bar: { radius: 2, columnWidthSingle: '55%', columnWidthGrouped: '75%', fill: 'solid', floatingLabels: true },
+  grid: { show: true, dashArray: 0, xLines: false, yLines: true, color: mp_color_chart_light_bloomreach_grid },
+  axes: { yLabelsOnTimeseries: true, labelFontSize: 12, labelFontWeight: 500, compactUnitCase: 'upper' },
+  crosshair: { show: true, dash: 0, color: mp_color_chart_light_bloomreach_crosshair },
+  markers: { hoverSize: 5, lastPoint: false },
+  // Bloomreach legend previews are short lines; the comparison series gets the dotted preview.
+  legend: { markerShape: 'line', markerSize: 12, hoverHighlight: true, position: 'bottom', align: 'center', fontSize: 13, comparisonMarker: 'dots' },
+  donut: { size: '62%', fill: 'solid', strokeWidth: 2, showDataLabels: false, cornerRadius: 0, spacing: 2 },
+  svg: { shade: 'flat' },
+  kpiSpark: { fillOpacity: 0 },
+  effects: { dropShadow: false },
+  states: { hoverFilter: 'none', hoverFilterValue: 0, dimmedOpacity: 0.25 },
+  posNeg: {
+    positive: mp_color_chart_light_bloomreach_positive,
+    negative: mp_color_chart_light_bloomreach_negative,
+    warning: mp_color_chart_light_bloomreach_warning,
+    neutral: mp_color_chart_light_bloomreach_neutral,
+  },
+  ramps: {
+    funnelStops: [
+      { offset: '0%', color: mp_color_chart_light_bloomreach_series1 },
+      { offset: '100%', color: mp_color_chart_light_bloomreach_series4 },
+    ],
+  },
+})
+
+/** Bloomreach chrome: slate labels, light solid grid, navy tooltip with white text. */
+const BLOOMREACH_LIGHT_CHROME: ChartChrome = {
+  axisLabel: mp_color_chart_light_bloomreach_axisLabel,
+  legendLabel: mp_color_chart_light_bloomreach_legendLabel,
+  grid: mp_color_chart_light_bloomreach_grid,
+  tooltipTheme: 'dark',
+  tooltipBackground: mp_color_chart_light_bloomreach_tooltipBackground,
+  tooltipText: mp_color_chart_light_bloomreach_tooltipText,
+  tooltipBorder: 'transparent',
+}
+
+/**
+ * Stripe Dashboard's chart grammar ("Your overview"): a 1.5px straight line with
+ * no area, a thin lighter previous period, no gridlines but a baseline, y labels
+ * at min and max only, x labels at the ends only, no legend, white tooltip card.
+ * Stripe's indigo becomes Maropost primary; the orange / blue / green status
+ * companions stay.
+ */
+const STRIPE_TREATMENT = makeTreatment({
+  stroke: { curve: 'straight', width: 1.5, companionWidth: 1.5, companionDash: 0, gradientLine: false },
+  comparison: { color: mp_color_chart_light_stripe_comparison, dash: 0, fillOpacity: 0 },
+  area: { fill: 'solid', opacityFrom: 0, opacityTo: 0 },
+  bar: { radius: 2, columnWidthSingle: '55%', columnWidthGrouped: '75%', fill: 'solid', floatingLabels: false },
+  grid: { show: false, dashArray: 0, xLines: false, yLines: false, color: mp_color_chart_light_stripe_grid },
+  axes: { yLabelsOnTimeseries: true, labelFontSize: 11, labelFontWeight: 400, compactUnitCase: 'upper', xLabels: 'ends', yTickAmount: 1, baseline: true },
+  crosshair: { show: true, dash: 0, color: mp_color_chart_light_stripe_crosshair },
+  markers: { hoverSize: 4, lastPoint: false },
+  legend: { markerShape: 'circle', markerSize: 8, hoverHighlight: true, show: false },
+  donut: { size: '70%', fill: 'solid', strokeWidth: 2, showDataLabels: false, cornerRadius: 0, spacing: 2 },
+  svg: { shade: 'flat' },
+  kpiSpark: { fillOpacity: 0 },
+  effects: { dropShadow: false },
+  states: { hoverFilter: 'none', hoverFilterValue: 0, dimmedOpacity: 0.3 },
+  posNeg: {
+    positive: mp_color_chart_light_stripe_positive,
+    negative: mp_color_chart_light_stripe_negative,
+    warning: mp_color_chart_light_stripe_warning,
+    neutral: mp_color_chart_light_stripe_neutral,
+  },
+})
+
+/** Stripe chrome: slate labels, hairline grid colour (used for the baseline), white tooltip. */
+const STRIPE_LIGHT_CHROME: ChartChrome = {
+  axisLabel: mp_color_chart_light_stripe_axisLabel,
+  legendLabel: mp_color_chart_light_stripe_legendLabel,
+  grid: mp_color_chart_light_stripe_grid,
+  tooltipTheme: 'light',
+  tooltipBackground: mp_color_chart_light_stripe_tooltipBackground,
+  tooltipText: mp_color_chart_light_stripe_tooltipText,
+  tooltipBorder: mp_color_chart_light_stripe_grid,
+}
+
 export const CHART_THEMES: Record<ChartPalette, Record<ChartMode, ChartTheme>> = {
   ocean: {
     light: {
@@ -431,6 +826,157 @@ export const CHART_THEMES: Record<ChartPalette, Record<ChartMode, ChartTheme>> =
       chrome: cloneChrome(DARK_CHROME),
       treatment: GRAY_BLUE_TREATMENT,
     },
+  },
+  merchant: {
+    light: {
+      label: 'Merchant Blue',
+      series: [
+        mp_color_chart_light_merchant_series1,
+        mp_color_chart_light_merchant_series2,
+        mp_color_chart_light_merchant_series3,
+        mp_color_chart_light_merchant_series4,
+        mp_color_chart_light_merchant_series5,
+        mp_color_chart_light_merchant_series6,
+      ],
+      axis: [
+        mp_color_chart_light_merchant_axis1,
+        mp_color_chart_light_merchant_axis2,
+        mp_color_chart_light_merchant_axis3,
+        mp_color_chart_light_merchant_axis4,
+        mp_color_chart_light_merchant_axis5,
+      ],
+      gradientMarks: false,
+      comparisonColor: mp_color_chart_light_merchant_comparison,
+      chrome: cloneChrome(LIGHT_CHROME),
+      treatment: MERCHANT_TREATMENT,
+    },
+    // PROVISIONAL — light-only review; dark tuning is follow-up
+    dark: {
+      label: 'Merchant Blue',
+      series: [
+        mp_color_chart_dark_merchant_series1,
+        mp_color_chart_dark_merchant_series2,
+        mp_color_chart_dark_merchant_series3,
+        mp_color_chart_dark_merchant_series4,
+        mp_color_chart_dark_merchant_series5,
+        mp_color_chart_dark_merchant_series6,
+      ],
+      axis: [
+        mp_color_chart_dark_merchant_axis1,
+        mp_color_chart_dark_merchant_axis2,
+        mp_color_chart_dark_merchant_axis3,
+        mp_color_chart_dark_merchant_axis4,
+        mp_color_chart_dark_merchant_axis5,
+      ],
+      gradientMarks: false,
+      comparisonColor: mp_color_chart_dark_merchant_comparison,
+      chrome: cloneChrome(DARK_CHROME),
+      treatment: MERCHANT_TREATMENT,
+    },
+  },
+  shopify: { light: SHOPIFY_LIGHT, dark: SHOPIFY_DARK },
+  bloomreach: {
+  light: {
+    label: 'Bloomreach — cyan',
+    series: [
+      mp_color_chart_light_bloomreach_series1,
+      mp_color_chart_light_bloomreach_series2,
+      mp_color_chart_light_bloomreach_series3,
+      mp_color_chart_light_bloomreach_series4,
+      mp_color_chart_light_bloomreach_series5,
+      mp_color_chart_light_bloomreach_series6,
+    ],
+    axis: [
+      mp_color_chart_light_bloomreach_axis1,
+      mp_color_chart_light_bloomreach_axis2,
+      mp_color_chart_light_bloomreach_axis3,
+      mp_color_chart_light_bloomreach_axis4,
+      mp_color_chart_light_bloomreach_axis5,
+    ],
+    gradientMarks: false,
+    comparisonColor: mp_color_chart_light_bloomreach_comparison,
+    chrome: cloneChrome(BLOOMREACH_LIGHT_CHROME),
+    treatment: BLOOMREACH_TREATMENT,
+    skin: 'bloomreach',
+  },
+  // PROVISIONAL — light-only review
+  dark: {
+    label: 'Bloomreach — cyan',
+    series: [
+      mp_color_chart_dark_bloomreach_series1,
+      mp_color_chart_dark_bloomreach_series2,
+      mp_color_chart_dark_bloomreach_series3,
+      mp_color_chart_dark_bloomreach_series4,
+      mp_color_chart_dark_bloomreach_series5,
+      mp_color_chart_dark_bloomreach_series6,
+    ],
+    axis: [
+      mp_color_chart_dark_bloomreach_axis1,
+      mp_color_chart_dark_bloomreach_axis2,
+      mp_color_chart_dark_bloomreach_axis3,
+      mp_color_chart_dark_bloomreach_axis4,
+      mp_color_chart_dark_bloomreach_axis5,
+    ],
+    gradientMarks: false,
+    comparisonColor: mp_color_chart_dark_bloomreach_comparison,
+    chrome: cloneChrome(DARK_CHROME),
+    treatment: BLOOMREACH_TREATMENT,
+    skin: 'bloomreach',
+  },
+  },
+  stripe: {
+  light: {
+    label: 'Stripe — Maropost blue',
+    series: [
+      mp_color_chart_light_stripe_series1,
+      mp_color_chart_light_stripe_series2,
+      mp_color_chart_light_stripe_series3,
+      mp_color_chart_light_stripe_series4,
+      mp_color_chart_light_stripe_series5,
+      mp_color_chart_light_stripe_series6,
+    ],
+    axis: [
+      mp_color_chart_light_stripe_axis1,
+      mp_color_chart_light_stripe_axis2,
+      mp_color_chart_light_stripe_axis3,
+      mp_color_chart_light_stripe_axis4,
+      mp_color_chart_light_stripe_axis5,
+    ],
+    gradientMarks: false,
+    comparisonColor: mp_color_chart_light_stripe_comparison,
+    chrome: cloneChrome(STRIPE_LIGHT_CHROME),
+    treatment: STRIPE_TREATMENT,
+    skin: 'stripe',
+  },
+  // PROVISIONAL — light-only review
+  dark: {
+    label: 'Stripe — Maropost blue',
+    series: [
+      mp_color_chart_dark_stripe_series1,
+      mp_color_chart_dark_stripe_series2,
+      mp_color_chart_dark_stripe_series3,
+      mp_color_chart_dark_stripe_series4,
+      mp_color_chart_dark_stripe_series5,
+      mp_color_chart_dark_stripe_series6,
+    ],
+    axis: [
+      mp_color_chart_dark_stripe_axis1,
+      mp_color_chart_dark_stripe_axis2,
+      mp_color_chart_dark_stripe_axis3,
+      mp_color_chart_dark_stripe_axis4,
+      mp_color_chart_dark_stripe_axis5,
+    ],
+    gradientMarks: false,
+    comparisonColor: mp_color_chart_dark_stripe_comparison,
+    chrome: cloneChrome(DARK_CHROME),
+    treatment: STRIPE_TREATMENT,
+    skin: 'stripe',
+  },
+  },
+  // Same marks; `skin` adds the Shopify admin page + card chrome on dashboards.
+  shopifyAdmin: {
+    light: { ...SHOPIFY_LIGHT, label: 'Shopify — charts + cards', skin: 'polaris' },
+    dark: { ...SHOPIFY_DARK, label: 'Shopify — charts + cards', skin: 'polaris' },
   },
   // Shares GRAY_BLUE_TREATMENT — comparison/posNeg values are identical; only
   // the series slots differ (subtle gold in the reference's orange position).
@@ -990,12 +1536,14 @@ export function chartLegendOptions(
   palette: string[],
   chrome: ChartChrome,
   position: 'top' | 'bottom' = 'top',
+  align?: 'left' | 'center' | 'right',
+  fontSize = 12,
 ): ApexOptions['legend'] {
   return {
     show: true,
     position,
-    horizontalAlign: position === 'top' ? 'right' : 'center',
-    fontSize: '12px',
+    horizontalAlign: align ?? (position === 'top' ? 'right' : 'center'),
+    fontSize: `${fontSize}px`,
     fontWeight: 500,
     labels: { colors: chrome.legendLabel },
     markers: {

@@ -5,7 +5,7 @@ type Tone = 'brand' | 'success' | 'warning' | 'danger' | 'neutral'
 
 const props = withDefaults(defineProps<{
   status: string
-  type?: 'order' | 'fulfillment' | 'payment' | 'campaign' | 'contact' | 'ticket' | 'coupon' | 'priority' | 'connection' | 'stock' | 'report' | 'general'
+  type?: 'order' | 'fulfillment' | 'payment' | 'payout' | 'dispute' | 'method' | 'readiness' | 'campaign' | 'contact' | 'ticket' | 'coupon' | 'priority' | 'connection' | 'stock' | 'report' | 'general'
   size?: 'sm' | 'md' | 'lg'
   variant?: 'flat' | 'tonal' | 'outlined'
   showIcon?: boolean
@@ -29,7 +29,29 @@ const toneMap: Record<string, Record<string, Tone>> = {
   },
   payment: {
     paid: 'success', refunded: 'danger', voided: 'neutral', pending: 'warning',
-    failed: 'danger', authorised: 'brand', partially_refunded: 'warning',
+    failed: 'danger', authorised: 'brand', 'partially refunded': 'warning', disputed: 'danger',
+    // Maropay payment wording (Succeeded / Processing / Cancelled).
+    succeeded: 'success', processing: 'warning', cancelled: 'neutral',
+  },
+  // Maropay payouts. "Sent to bank" is the confirmed event — never "received".
+  payout: {
+    upcoming: 'brand', 'in transit': 'warning', 'sent to bank': 'success', failed: 'danger',
+  },
+  dispute: {
+    'needs response': 'danger', 'under review': 'warning', won: 'success', lost: 'danger', accepted: 'neutral',
+  },
+  // A payment method's state on one store.
+  method: {
+    available: 'neutral', 'setup required': 'warning', 'pending approval': 'warning',
+    enabled: 'success', unavailable: 'neutral',
+  },
+  // Maropay's account/store state dimensions — one map, so "submitted", "verified",
+  // "ready to activate" and "live" read as distinct steps rather than one "Connected".
+  readiness: {
+    'not started': 'neutral', 'in progress': 'brand', submitted: 'brand', 'not submitted': 'neutral',
+    'under review': 'warning', 'action required': 'danger', verified: 'success', rejected: 'danger', declined: 'danger',
+    'not enabled': 'neutral', enabled: 'success', restricted: 'danger', disabled: 'neutral',
+    ready: 'success', paused: 'warning', inactive: 'neutral', 'needs setup': 'warning', 'ready to activate': 'brand', live: 'success',
   },
   campaign: {
     sent: 'success', scheduled: 'brand', draft: 'neutral', sending: 'warning',
@@ -58,6 +80,8 @@ const toneMap: Record<string, Record<string, Tone>> = {
     connected: 'success', disconnected: 'neutral', 'needs setup': 'warning',
     'sync issue': 'danger', 'auth expired': 'danger', syncing: 'warning',
     error: 'danger', healthy: 'success',
+    // A store's payment providers: connected and offering, connected but not finished, or switched off.
+    active: 'success', 'setup incomplete': 'warning', inactive: 'neutral',
   },
   stock: {
     'in stock': 'success', 'low stock': 'warning', 'out of stock': 'danger',
@@ -116,6 +140,23 @@ const iconMap: Record<string, Record<string, string>> = {
   payment: {
     paid: 'check-circle', refunded: 'corner-down-left',
     failed: 'alert-circle',
+    succeeded: 'check-circle', processing: 'clock', authorised: 'shield-check',
+    'partially refunded': 'corner-down-left', disputed: 'shield-alert', cancelled: 'circle-x',
+  },
+  payout: {
+    upcoming: 'calendar-clock', 'in transit': 'clock', 'sent to bank': 'check-circle', failed: 'alert-circle',
+  },
+  dispute: {
+    'needs response': 'alert-circle', 'under review': 'clock', won: 'check-circle', lost: 'x-circle', accepted: 'corner-down-left',
+  },
+  method: {
+    'setup required': 'wrench', 'pending approval': 'clock', enabled: 'check-circle', unavailable: 'ban',
+  },
+  readiness: {
+    'not started': 'circle-dashed', 'in progress': 'loader', submitted: 'send', 'not submitted': 'circle-dashed',
+    'under review': 'clock', 'action required': 'alert-circle', verified: 'check-circle', rejected: 'x-circle', declined: 'x-circle',
+    'not enabled': 'circle-dashed', enabled: 'check-circle', restricted: 'ban', disabled: 'ban',
+    ready: 'check-circle', paused: 'pause-circle', inactive: 'circle-dashed', 'needs setup': 'list-checks', 'ready to activate': 'rocket', live: 'check-circle',
   },
   priority: {
     critical: 'alert-octagon', urgent: 'alert-octagon', high: 'alert-triangle',
@@ -124,6 +165,7 @@ const iconMap: Record<string, Record<string, string>> = {
   connection: {
     connected: 'check-circle', disconnected: 'circle-x',
     'needs setup': 'wrench', 'sync issue': 'refresh-cw', 'auth expired': 'key-round',
+    active: 'check-circle', 'setup incomplete': 'wrench', inactive: 'circle-dashed',
   },
   stock: {
     'in stock': 'circle-check', 'low stock': 'alert-triangle', 'out of stock': 'circle-x',

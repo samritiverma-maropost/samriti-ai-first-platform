@@ -410,7 +410,7 @@ function onComposerSend(payload: { body: string; to: string; cc: string; setStat
             <template v-if="railOpen === 'contact'">
               <dl class="mp-label-value tw-dl">
                 <div>
-                  <dt class="mp-meta-label text-medium-emphasis">Name</dt>
+                  <dt>Name</dt>
                   <dd>
                     <RouterLink
                       :to="{ name: 'AllContacts', params: { accountId } }"
@@ -419,11 +419,11 @@ function onComposerSend(payload: { body: string; to: string; cc: string; setStat
                   </dd>
                 </div>
                 <div>
-                  <dt class="mp-meta-label text-medium-emphasis">Email</dt>
+                  <dt>Email</dt>
                   <dd class="text-body-2">{{ ticket.customerEmail }}</dd>
                 </div>
                 <div>
-                  <dt class="mp-meta-label text-medium-emphasis">Mobile no.</dt>
+                  <dt>Mobile no.</dt>
                   <dd class="text-body-2">{{ ticket.customerPhone || '—' }}</dd>
                 </div>
               </dl>

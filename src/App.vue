@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import { mp_layout_sidebarWidth, mp_layout_sidebarRailWidth } from '@/design-tokens/generated/tokens'
@@ -24,6 +24,9 @@ import { useCopilotStore } from '@/stores/useCopilot'
 import { useAccountsStore } from '@/stores/useAccounts'
 import { useSalesChannelsStore } from '@/stores/useSalesChannels'
 import { usePlgStore, isPlgDemoPreset } from '@/stores/usePlg'
+import { useMaropayStore, isMaropayScenarioKey } from '@/stores/useMaropay'
+import { useCatalogCopilotStore } from '@/stores/useCatalogCopilot'
+import { isCatalogScenario } from '@/composables/catalogCopilotConfig'
 import PlgTrialBanner from '@/components/plg/PlgTrialBanner.vue'
 
 // Apply stored accent and theme to Vuetify on initial mount
@@ -33,6 +36,7 @@ setMode(mode.value)
 
 const accountsStore = useAccountsStore()
 const route = useRoute()
+const router = useRouter()
 
 // Sidebar theme: a ?nav=white|gray|dark query param wins over the account's
 // preference (for stakeholder demos). Captured in-memory so it sticks across
@@ -75,7 +79,7 @@ watch(() => route.query.frame, (f) => {
 // Independent of, and composes with, ?nav=. Unknown values fall back to grayBlue
 // (the default — focal blue + gray de-emphasis with a monochrome blue ramp).
 const VALID_CHART_PALETTES: readonly ChartPalette[] = [
-  'grayBlue', 'grayBlueGold', 'social', 'ocean',
+  'grayBlue', 'grayBlueGold', 'social', 'ocean', 'merchant', 'shopify', 'shopifyAdmin', 'bloomreach', 'stripe',
   'socialGradient', 'grayBlueGradient', 'grayBlueGoldGradient', 'oceanGradient',
 ]
 const isChartPalette = (v: unknown): v is ChartPalette =>
@@ -92,6 +96,27 @@ watch(() => chartOverride.value ?? 'grayBlue', applyChartPalette, { immediate: t
 const plgStore = usePlgStore()
 watch(() => route.query.plg, (p) => {
   if (isPlgDemoPreset(p)) plgStore.applyDemoPreset(p)
+}, { immediate: true })
+
+// Catalog Co-Pilot entitlement scenario: ?catalog=trial|trial_exhausted|no_pack|
+// pack_exhausted|kill_switch|flag_off|view_only|auto — same idiom as ?plg=, saved
+// per account by the catalog store (re-applying the same scenario changes nothing).
+const catalogCopilot = useCatalogCopilotStore()
+watch(() => route.query.catalog, (scenario) => {
+  if (isCatalogScenario(scenario)) catalogCopilot.setScenario(scenario)
+}, { immediate: true })
+
+// Maropay owns payment records and projects them onto Commerce orders, so it
+// starts with the app. A ?maropay=m01…m17 query param loads a review scenario
+// for the active account — same idiom as ?plg=, except the param is dropped
+// once applied: a later refresh must keep the reviewer's progress (M02).
+const maropayStore = useMaropayStore()
+watch(() => route.query.maropay, (key) => {
+  if (!isMaropayScenarioKey(key)) return
+  maropayStore.applyScenario(key)
+  const query = { ...route.query }
+  delete query.maropay
+  void router.replace({ query })
 }, { immediate: true })
 
 const drawer = ref(true)
@@ -161,8 +186,9 @@ const isFullPage = computed(() => !!route.meta?.fullPage)
 const isFlush = computed(() => !!route.meta?.flush)
 // The AI experience owns the whole screen and hosts its own Da Vinci conversation.
 // Showing the drawer alongside it puts two Da Vinci surfaces on screen at once,
-// each with its own greeting, so it stays closed there.
-const copilotAvailable = computed(() => route.name !== 'DaVinciExperience')
+// each with its own greeting, so it stays closed there. The Trial Lab renders
+// its own shell for a brand-new user, so the drawer stays closed there too.
+const copilotAvailable = computed(() => route.name !== 'DaVinciExperience' && !route.meta?.trialLab)
 const copilotVisible = computed({
   get: () => copilot.isOpen && copilotAvailable.value,
   set: (value: boolean) => {

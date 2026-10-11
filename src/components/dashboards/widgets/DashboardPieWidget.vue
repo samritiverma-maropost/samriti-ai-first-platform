@@ -136,6 +136,8 @@ const options = computed<ApexOptions>(() => {
             fillColors: palette.value,
           },
           onItemHover: { highlightDataSeries: t.legend.hoverHighlight },
+          // Stripe-style treatments hide the legend (values live in the tooltip).
+          ...(t.legend.show === false ? { show: false } : {}),
         }
       : chartLegendOptions(palette.value, chrome, 'bottom'),
     dataLabels: {
@@ -149,8 +151,8 @@ const options = computed<ApexOptions>(() => {
       pie: {
         // Native rounded-donut geometry (Apex 6): pill slice ends + true gaps,
         // matching the ApexCharts Rounded Donut reference.
-        borderRadius: 8,
-        spacing: 4,
+        borderRadius: t?.donut.cornerRadius ?? 8,
+        spacing: t?.donut.spacing ?? 4,
         donut: {
           size: t ? t.donut.size : '68%',
           // Hovering a slice reads it out in the ring's centre. A standing
