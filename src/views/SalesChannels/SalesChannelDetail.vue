@@ -41,6 +41,8 @@ type ProductTarget =
   | 'preview'
   | 'registers'
   | 'settings'
+  | 'store_settings'
+  | 'store_payments'
   | 'shopping_assistant'
   | 'transactions'
 
@@ -340,6 +342,7 @@ const setupChecklist = computed<SetupItem[]>(() => {
       { id: 'theme', title: 'Theme ready', description: current.webStore?.published ? 'Published theme is live' : 'Publish the draft theme', done: Boolean(current.webStore?.published), target: 'store_builder' },
       { id: 'merchandise', title: 'Merchandising connected', description: 'Search and recommendations are active', done: Boolean(current.webStore?.merchandiseConnected), target: 'merchandise' },
       { id: 'legal', title: 'Legal pages', description: 'Review privacy and returns', done: false, target: 'settings' },
+      { id: 'payments', title: 'Payment gateway', description: 'Connect Maropay at checkout', done: false, target: 'store_payments' },
       { id: 'apps', title: 'Connected apps', description: 'Payments and fulfillment are connected', done: true, target: 'apps' },
     ]
   }
@@ -386,7 +389,7 @@ const overviewActivityItems = computed(() => activityItems.value.slice(0, 3))
 const connectedApps = computed<ConnectedApp[]>(() => {
   if (isWebStore.value) {
     return [
-      { id: 'stripe', name: 'Stripe', category: 'Payments', initials: 'ST', connected: true },
+      { id: 'maropay', name: 'Maropay', category: 'Payments', initials: 'MP', connected: true },
       { id: 'shipstation', name: 'ShipStation', category: 'Fulfillment', initials: 'SH', connected: true },
       { id: 'meta', name: 'Meta Ads', category: 'Ads', initials: 'ME', connected: true },
       { id: 'google', name: 'Google Ads', category: 'Ads', initials: 'GO', connected: false },
@@ -610,6 +613,14 @@ function runAction(target: ProductTarget) {
   }
   if (target === 'settings') {
     openSettings()
+    return
+  }
+  if (target === 'store_settings') {
+    router.push({ name: 'StoreSettingsLanding', params: { accountId: accountId.value, channelId: channelId.value } })
+    return
+  }
+  if (target === 'store_payments') {
+    router.push({ name: 'StorePaymentsGateway', params: { accountId: accountId.value, channelId: channelId.value } })
     return
   }
   if (target === 'chatbot') {

@@ -7,6 +7,7 @@ import { mp_layout_sidebarWidth, mp_layout_sidebarRailWidth } from '@/design-tok
 import AppBar from '@/components/layout/AppBar.vue'
 import MpDaVinciBot from '@/components/MpDaVinciBot.vue'
 import MpToastStack from '@/components/MpToastStack.vue'
+import MaropaySnackbar from '@/components/maropay/MaropaySnackbar.vue'
 import {
   useAppTheme,
   applySidebarTheme,
@@ -246,6 +247,7 @@ const copilotDrawerWidth = computed(() => {
 
     <!-- Shared toast stack (WP-C1) — mounted once, Teleports to body itself. -->
     <MpToastStack />
+    <MaropaySnackbar />
   </v-app>
 </template>
 

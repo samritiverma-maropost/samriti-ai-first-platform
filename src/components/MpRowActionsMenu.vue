@@ -28,14 +28,16 @@ const computedAriaLabel = computed(() =>
            activate a clickable host row/card. -->
       <v-btn
         v-bind="menu"
-        icon="more-vertical"
+        icon
         variant="text"
         size="x-small"
         class="text-medium-emphasis mp-row-actions__trigger"
         :aria-label="computedAriaLabel"
         aria-haspopup="menu"
         @click.stop
-      ></v-btn>
+      >
+        <v-icon size="18">ellipsis-vertical</v-icon>
+      </v-btn>
     </template>
     <v-list density="compact" role="menu" class="mp-row-actions__list">
       <slot />

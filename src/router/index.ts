@@ -238,6 +238,14 @@ const routes: RouteRecordRaw[] = [
     children: [
       { path: '', name: 'SalesChannelDetail', component: () => import('@/views/SalesChannels/SalesChannelDetail.vue') },
       { path: 'navigation', name: 'StoreNavigation', component: () => import('@/views/SalesChannels/StoreNavigation.vue') },
+      {
+        path: 'navigation/davinci-e2e',
+        redirect: (to) => ({
+          name: 'StoreNavigation',
+          params: to.params,
+          query: { ...to.query, journey: 'e2e' },
+        }),
+      },
       { path: 'navigation/new', name: 'StoreNavigationMenuCreate', component: () => import('@/views/SalesChannels/StoreNavigationMenuEditor.vue') },
       { path: 'navigation/:menuId', name: 'StoreNavigationMenuEdit', component: () => import('@/views/SalesChannels/StoreNavigationMenuEditor.vue') },
       { path: 'pages', name: 'StorePages', component: () => import('@/views/SalesChannels/StoreContentList.vue'), meta: { contentKind: 'page' } },
@@ -248,7 +256,25 @@ const routes: RouteRecordRaw[] = [
       { path: 'blogs/:entryId', name: 'StoreBlogEdit', component: () => import('@/views/SalesChannels/StoreContentEditor.vue'), meta: { contentKind: 'blog' } },
       { path: 'campaigns', name: 'StoreCampaigns', component: () => import('@/views/SalesChannels/StoreCampaigns.vue') },
       { path: 'assets', name: 'StoreAssets', component: () => import('@/views/SalesChannels/StoreAssets.vue') },
+      { path: 'settings', name: 'StoreSettingsLanding', component: () => import('@/views/SalesChannels/StoreSettingsLanding.vue') },
+      { path: 'settings/website-configuration', name: 'StoreWebsiteConfiguration', component: () => import('@/views/SalesChannels/StoreWebsiteConfiguration.vue') },
+      { path: 'settings/abandoned-cart', name: 'StoreAbandonedCartSettings', component: () => import('@/views/SalesChannels/StoreAbandonedCartSettings.vue') },
+      { path: 'settings/payments/gateway', name: 'StorePaymentsGateway', component: () => import('@/views/SalesChannels/StorePaymentsGateway.vue') },
+      { path: 'settings/payments/maropay/onboarding', name: 'MaropayOnboarding', component: () => import('@/views/SalesChannels/MaropayOnboarding.vue') },
+      { path: 'settings/payments/maropay/manage', name: 'MaropayManageSettings', component: () => import('@/views/SalesChannels/MaropayManageSettings.vue') },
     ],
+  },
+  {
+    path: '/accounts/:accountId/store-payments-setup',
+    name: 'StorePaymentsSetup',
+    redirect: (to) => {
+      const accountId = Array.isArray(to.params.accountId) ? to.params.accountId[0] : to.params.accountId
+      return {
+        name: 'StorePaymentsGateway',
+        params: { accountId, channelId: 'beta-sales-channel' },
+      }
+    },
+    meta: commerceGate,
   },
 
   // 6. Marketing
@@ -408,6 +434,12 @@ const routes: RouteRecordRaw[] = [
   { path: '/accounts/:accountId/dashboard-gradient/:dashboardId', name: 'DashboardGradientDetail', component: () => import('@/views/DashboardGradient/DashboardGradientView.vue') },
 
   // Redirect root to dashboard
+  /** Pre-merge review — ROVO / Da Vinci Sidekick-style panel (see src/review/rovo-davinci/README.md) */
+  {
+    path: '/review/rovo-davinci-navigation',
+    name: 'ReviewRovoDaVinciNavigation',
+    component: () => import('@/views/review/RovoDaVinciNavigationReview.vue'),
+  },
   { path: '/', redirect: '/accounts/2000290/dashboard' },
   // Catchall
   { path: '/:pathMatch(.*)*', redirect: '/accounts/2000290/dashboard' }

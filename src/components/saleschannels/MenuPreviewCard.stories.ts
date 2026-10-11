@@ -11,10 +11,10 @@ function mainMenu(): StoreMenu {
     status: 'Active',
     updatedAt: 'Jul 8, 2026',
     items: [
-      createMenuItem({ title: 'Home', linkType: 'homepage' }, 'story-mi-home'),
-      createMenuItem({ title: 'Shop all', linkType: 'collection-list' }, 'story-mi-shop'),
-      createMenuItem({ title: 'New arrivals', linkType: 'collection', target: 'col-new-arrivals' }, 'story-mi-new'),
-      createMenuItem({ title: 'Blog', linkType: 'blog' }, 'story-mi-blog'),
+      createMenuItem({ title: 'Home', resourceType: 'homepage' }, 'story-mi-home'),
+      createMenuItem({ title: 'Shop all', resourceType: 'collection_list' }, 'story-mi-shop'),
+      createMenuItem({ title: 'New arrivals', resourceType: 'collection', target: 'col-new-arrivals' }, 'story-mi-new'),
+      createMenuItem({ title: 'Blog', resourceType: 'blog', target: 'blog-trend' }, 'story-mi-blog'),
     ],
   }
 }
@@ -28,9 +28,9 @@ function footerMenu(): StoreMenu {
     status: 'Active',
     updatedAt: 'Jul 2, 2026',
     items: [
-      createMenuItem({ title: 'Search', linkType: 'search' }, 'story-mi-search'),
-      createMenuItem({ title: 'Privacy policy', linkType: 'page', target: 'page-privacy' }, 'story-mi-privacy'),
-      createMenuItem({ title: 'Contact', linkType: 'url', target: 'https://example.com/contact' }, 'story-mi-contact'),
+      createMenuItem({ title: 'Search', resourceType: 'search' }, 'story-mi-search'),
+      createMenuItem({ title: 'Privacy policy', resourceType: 'page', target: 'page-privacy' }, 'story-mi-privacy'),
+      createMenuItem({ title: 'Contact', resourceType: 'custom_url', target: 'https://example.com/contact' }, 'story-mi-contact'),
     ],
   }
 }

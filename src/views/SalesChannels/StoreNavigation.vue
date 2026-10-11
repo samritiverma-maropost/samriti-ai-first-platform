@@ -1,15 +1,14 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { computeNavigationE2eStep } from '@/constants/navigationDaVinci'
+import NavigationDaVinciE2eBanner from '@/components/saleschannels/navigation/NavigationDaVinciE2eBanner.vue'
 import { useSalesChannelsStore } from '@/stores/useSalesChannels'
-import { useStoreNavigationStore, type StoreMenu } from '@/stores/useStoreNavigation'
-import MpPageHeader from '@/components/MpPageHeader.vue'
-import MpDataTableToolbar from '@/components/MpDataTableToolbar.vue'
+import { flattenMenuItemTitles, useStoreNavigationStore, type StoreMenu } from '@/stores/useStoreNavigation'
+import MpConfirmDialog from '@/components/MpConfirmDialog.vue'
 import MpEmptyState from '@/components/MpEmptyState.vue'
-import MpStatusChip from '@/components/MpStatusChip.vue'
 import MpMenuItem from '@/components/MpMenuItem.vue'
 import MpRowActionsMenu from '@/components/MpRowActionsMenu.vue'
-import MpConfirmDialog from '@/components/MpConfirmDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -29,36 +28,94 @@ const channelId = computed(() => {
 const channel = computed(() => salesChannelsStore.getChannel(accountId.value, channelId.value))
 
 const search = ref('')
+const page = ref(1)
+const rowsPerPage = ref(10)
+
+const journeyE2e = computed(() => route.query.journey === 'e2e')
+const e2eJustSaved = ref(route.query.saved === '1')
+
+watch(
+  () => route.query.saved,
+  (value) => {
+    e2eJustSaved.value = value === '1'
+  },
+)
+
+const e2eStep = computed(() =>
+  computeNavigationE2eStep({
+    journeyE2e: journeyE2e.value,
+    view: 'listing',
+    e2eJustSaved: e2eJustSaved.value,
+    saveConfirmOpen: false,
+    previewOpen: false,
+    e2eRefined: false,
+    fromDaVinci: false,
+    hasItems: false,
+    davinciModalOpen: false,
+    davinciGenerating: false,
+  }),
+)
+
+const journeyQuery = computed(() => (journeyE2e.value ? { journey: 'e2e' as const } : {}))
 
 const menus = computed(() => navigationStore.menusForChannel(channelId.value))
 
 const filteredMenus = computed(() => {
   const term = search.value.trim().toLowerCase()
   if (!term) return menus.value
-  return menus.value.filter(
-    (menu) =>
-      menu.name.toLowerCase().includes(term) ||
-      menu.items.some((item) => item.title.toLowerCase().includes(term)),
-  )
+  return menus.value.filter((menu) => {
+    const titles = flattenMenuItemTitles(menu.items)
+    return menu.name.toLowerCase().includes(term) || titles.some((t) => t.toLowerCase().includes(term))
+  })
 })
 
-const headers = [
-  { title: 'Menu', key: 'name', sortable: true },
-  { title: 'Menu items', key: 'items', sortable: false },
-  { title: 'Status', key: 'status', sortable: true },
-  { title: 'Updated', key: 'updatedAt', sortable: true },
-  { title: '', key: 'actions', align: 'end' as const, sortable: false },
-]
+const pageCount = computed(() => Math.max(1, Math.ceil(filteredMenus.value.length / rowsPerPage.value)))
+
+const pagedMenus = computed(() => {
+  const start = (page.value - 1) * rowsPerPage.value
+  return filteredMenus.value.slice(start, start + rowsPerPage.value)
+})
+
+const rangeLabel = computed(() => {
+  if (!filteredMenus.value.length) return '0–0 of 0'
+  const start = (page.value - 1) * rowsPerPage.value + 1
+  const end = Math.min(page.value * rowsPerPage.value, filteredMenus.value.length)
+  return `${start}–${end} of ${filteredMenus.value.length}`
+})
+
+function chipPreview(menu: StoreMenu) {
+  const titles = flattenMenuItemTitles(menu.items)
+  return {
+    first: titles[0],
+    more: Math.max(0, titles.length - 1),
+  }
+}
 
 function openEditor(menu: StoreMenu) {
-  router.push({ name: 'StoreNavigationMenuEdit', params: { accountId: accountId.value, channelId: channelId.value, menuId: menu.id } })
+  router.push({
+    name: 'StoreNavigationMenuEdit',
+    params: { accountId: accountId.value, channelId: channelId.value, menuId: menu.id },
+    query: { ...journeyQuery.value },
+  })
 }
 
-function toggleStatus(menu: StoreMenu) {
-  navigationStore.setMenuStatus(menu.id, menu.status === 'Active' ? 'Inactive' : 'Active')
+function openCreate() {
+  router.push({
+    name: 'StoreNavigationMenuCreate',
+    params: { accountId: accountId.value, channelId: channelId.value },
+    query: { ...journeyQuery.value },
+  })
 }
 
-// ── Delete flow ──────────────────────────────────────────────────
+function restartE2eJourney() {
+  e2eJustSaved.value = false
+  router.replace({
+    name: 'StoreNavigation',
+    params: { accountId: accountId.value, channelId: channelId.value },
+    query: { journey: 'e2e' },
+  })
+}
+
 const deleteDialog = ref(false)
 const menuPendingDelete = ref<StoreMenu | null>(null)
 
@@ -75,7 +132,8 @@ function confirmDelete() {
 const deleteMessage = computed(() => {
   const menu = menuPendingDelete.value
   if (!menu) return ''
-  return `"${menu.name}" and its ${menu.items.length} menu item${menu.items.length === 1 ? '' : 's'} will be removed. Theme sections referencing the "${menu.handle}" handle will stop showing this menu.`
+  const count = flattenMenuItemTitles(menu.items).length
+  return `"${menu.name}" and its ${count} menu item${count === 1 ? '' : 's'} will be removed. Theme sections referencing the "${menu.handle}" handle will stop showing this menu.`
 })
 </script>
 
@@ -92,102 +150,142 @@ const deleteMessage = computed(() => {
     </v-card>
   </div>
 
-  <div v-else class="h-100 d-flex flex-column gap-5">
-    <MpPageHeader
-      title="Navigation"
-      :subtitle="`Storefront menus for ${channel.name}`"
-    >
-      <template #actions>
-        <v-btn
-          color="primary"
-          variant="flat"
-          prepend-icon="plus"
-          class="text-none"
-          :to="{ name: 'StoreNavigationMenuCreate', params: { accountId, channelId } }"
-        >
-          Add menu
-        </v-btn>
-      </template>
-    </MpPageHeader>
+  <div v-else class="d-flex flex-column ga-5 pb-8">
+    <NavigationDaVinciE2eBanner
+      v-if="journeyE2e"
+      :step="e2eStep"
+      :show-complete="e2eJustSaved"
+      @restart="restartE2eJourney"
+    />
 
-    <v-card variant="flat" border rounded="lg" class="flex-grow-1 d-flex flex-column overflow-hidden">
-      <MpDataTableToolbar
-        v-model:search="search"
-        title="Menus"
-        search-placeholder="Search menus or items…"
-        :total-count="filteredMenus.length"
+    <nav class="nav-crumb" aria-label="Breadcrumb">
+      <router-link :to="{ name: 'SalesChannels', params: { accountId } }">Sales channel</router-link>
+      <span class="nav-crumb__sep">&gt;</span>
+      <router-link :to="{ name: 'SalesChannelDetail', params: { accountId, channelId } }">
+        {{ channel.name }}
+      </router-link>
+      <span class="nav-crumb__sep">&gt;</span>
+      <span class="text-medium-emphasis">Navigation</span>
+    </nav>
+
+    <div class="nav-list-head d-flex align-center flex-wrap ga-3">
+      <h1 class="text-h5 font-weight-bold ma-0 flex-grow-1">Navigation</h1>
+      <v-btn color="primary" variant="flat" prepend-icon="plus" class="text-none" @click="openCreate">
+        Create a menu
+      </v-btn>
+    </div>
+
+    <v-card flat border rounded="lg" class="nav-list-card overflow-hidden">
+      <div class="nav-list-toolbar d-flex align-center flex-wrap ga-3 pa-4">
+        <v-text-field
+          v-model="search"
+          placeholder="Search menus or items…"
+          prepend-inner-icon="search"
+          hide-details
+          density="compact"
+          class="nav-search"
+          aria-label="Search menus"
+        />
+      </div>
+
+      <v-table class="nav-table" hover>
+        <thead>
+          <tr>
+            <th>Menu name</th>
+            <th>Menu items</th>
+            <th class="text-center">Status</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="menu in pagedMenus"
+            :key="menu.id"
+            :class="{ 'nav-row--inactive': menu.status === 'Inactive' }"
+          >
+            <td>
+              <button type="button" class="nav-menu-name text-none" @click="openEditor(menu)">
+                {{ menu.name }}
+              </button>
+            </td>
+            <td>
+              <div class="d-flex align-center flex-wrap ga-2">
+                <v-chip
+                  v-if="chipPreview(menu).first"
+                  size="small"
+                  variant="tonal"
+                  color="primary"
+                  class="font-weight-medium"
+                >
+                  {{ chipPreview(menu).first }}
+                </v-chip>
+                <button
+                  v-if="chipPreview(menu).more"
+                  type="button"
+                  class="nav-more text-none"
+                >
+                  +{{ chipPreview(menu).more }} more
+                </button>
+                <span v-if="!chipPreview(menu).first" class="text-caption text-medium-emphasis">No items yet</span>
+              </div>
+            </td>
+            <td class="text-center">
+              <span
+                class="nav-status"
+                :class="menu.status === 'Active' ? 'nav-status--active' : 'nav-status--inactive'"
+              >
+                {{ menu.status }}
+              </span>
+            </td>
+            <td class="text-end">
+              <MpRowActionsMenu ariaLabel="Menu actions" :itemLabel="menu.name">
+                <MpMenuItem title="Edit" icon="pencil" @click="openEditor(menu)" />
+                <v-divider class="my-1" />
+                <MpMenuItem title="Delete" icon="trash-2" danger @click="askDelete(menu)" />
+              </MpRowActionsMenu>
+            </td>
+          </tr>
+        </tbody>
+      </v-table>
+
+      <MpEmptyState
+        v-if="!filteredMenus.length"
+        class="pa-8"
+        icon="list-tree"
+        title="No menus yet"
+        description="Create a menu to control the links shoppers see in your storefront header and footer."
+        action-label="Create a menu"
+        action-icon="plus"
+        @action="openCreate"
       />
 
-      <v-data-table
-        :headers="headers"
-        :items="filteredMenus"
-        item-value="id"
-        hover
-        density="comfortable"
-        :items-per-page="15"
-        fixed-header
-        class="flex-grow-1"
-      >
-        <template v-slot:item.name="{ item }">
-          <div class="d-flex align-center gap-2 py-1">
-            <v-avatar size="30" rounded="lg" color="primary" variant="tonal">
-              <v-icon size="16">list-tree</v-icon>
-            </v-avatar>
-            <div class="min-width-0">
-              <a class="text-body-2 font-weight-bold text-primary cursor-pointer" @click="openEditor(item)">{{ item.name }}</a>
-              <div class="text-caption text-medium-emphasis font-mono">{{ item.handle }}</div>
-            </div>
-          </div>
-        </template>
-
-        <template v-slot:item.items="{ item }">
-          <div class="d-flex align-center gap-1 flex-wrap py-1">
-            <v-chip
-              v-for="menuItem in item.items.slice(0, 4)"
-              :key="menuItem.id"
-              size="x-small"
-              variant="tonal"
-              class="font-weight-medium"
-            >
-              {{ menuItem.title }}
-            </v-chip>
-            <v-tooltip v-if="item.items.length > 4" location="top" :text="item.items.slice(4).map(itemRow => itemRow.title).join(', ')">
-              <template v-slot:activator="{ props }">
-                <span v-bind="props" class="text-caption text-medium-emphasis">+{{ item.items.length - 4 }} more</span>
-              </template>
-            </v-tooltip>
-            <span v-if="item.items.length === 0" class="text-caption text-medium-emphasis">No items yet</span>
-          </div>
-        </template>
-
-        <template v-slot:item.status="{ item }">
-          <MpStatusChip :status="item.status" type="general" size="sm" />
-        </template>
-
-        <template v-slot:item.updatedAt="{ item }">
-          <span class="text-body-2">{{ item.updatedAt }}</span>
-        </template>
-
-        <template v-slot:item.actions="{ item }">
-          <MpRowActionsMenu ariaLabel="Menu actions" :itemLabel="item.name">
-            <MpMenuItem :title="item.status === 'Active' ? 'Set inactive' : 'Set active'" :icon="item.status === 'Active' ? 'eye-off' : 'eye'" @click="toggleStatus(item)" />
-            <MpMenuItem title="Edit" icon="pencil" @click="openEditor(item)" />
-            <v-divider class="my-1" />
-            <MpMenuItem title="Delete" icon="trash-2" danger @click="askDelete(item)" />
-          </MpRowActionsMenu>
-        </template>
-
-        <template v-slot:no-data>
-          <MpEmptyState
-            icon="list-tree"
-            title="No menus yet"
-            description="Create a menu to control the links shoppers see in your storefront header and footer."
-            action-label="Add menu"
-            action-icon="plus"
-            @action="router.push({ name: 'StoreNavigationMenuCreate', params: { accountId, channelId } })"
-          />
-        </template>
-      </v-data-table>
+      <div v-if="filteredMenus.length" class="nav-footer d-flex align-center flex-wrap ga-3 pa-4">
+        <span class="text-body-2 text-medium-emphasis">Rows per page:</span>
+        <v-select
+          v-model="rowsPerPage"
+          :items="[10, 25, 50]"
+          density="compact"
+          hide-details
+          class="nav-rows-select"
+        />
+        <span class="text-body-2 text-medium-emphasis ms-auto">{{ rangeLabel }}</span>
+        <v-btn
+          icon="chevron-left"
+          variant="text"
+          size="small"
+          :disabled="page <= 1"
+          aria-label="Previous page"
+          @click="page = Math.max(1, page - 1)"
+        />
+        <v-btn
+          icon="chevron-right"
+          variant="text"
+          size="small"
+          :disabled="page >= pageCount"
+          aria-label="Next page"
+          @click="page = Math.min(pageCount, page + 1)"
+        />
+      </div>
     </v-card>
 
     <MpConfirmDialog
@@ -201,12 +299,76 @@ const deleteMessage = computed(() => {
   </div>
 </template>
 
-<style scoped>
-.cursor-pointer {
+<style scoped lang="scss">
+@use '@/components/saleschannels/navigation/navigationMenuShared.scss';
+
+.nav-search {
+  max-width: var(--mp-component-toolbar-searchWidth);
+  min-width: var(--mp-component-toolbar-searchMinWidth);
+}
+
+.nav-table th {
+  font-size: var(--mp-fontSize-12);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgb(var(--v-theme-on-surface-muted));
+}
+
+.nav-menu-name {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: var(--mp-fontSize-14);
+  font-weight: 600;
+  color: rgb(var(--v-theme-primary));
   cursor: pointer;
 }
 
-.min-width-0 {
-  min-width: 0;
+.nav-row--inactive .nav-menu-name,
+.nav-row--inactive .nav-more {
+  opacity: 0.55;
+}
+
+.nav-more {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: var(--mp-fontSize-13);
+  font-weight: 500;
+  color: rgb(var(--v-theme-primary));
+  cursor: default;
+}
+
+.nav-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  padding: var(--mp-space-2) var(--mp-space-10);
+  border-radius: var(--mp-radius-full);
+  font-size: var(--mp-fontSize-12);
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.nav-status--active {
+  color: rgb(var(--v-theme-success));
+  border-color: rgb(var(--v-theme-success));
+  background: rgba(var(--v-theme-success), 0.08);
+}
+
+.nav-status--inactive {
+  color: rgb(var(--v-theme-error));
+  border-color: rgb(var(--v-theme-error));
+  background: rgba(var(--v-theme-error), 0.06);
+}
+
+.nav-footer {
+  border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.nav-rows-select {
+  max-width: 88px;
 }
 </style>

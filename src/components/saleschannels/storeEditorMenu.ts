@@ -1,6 +1,5 @@
 // Store editor section rail — data-driven menu (mirrors settings/settingsMenu.ts).
-// Live pages only: sections appear here once their page exists (UAT parity A06b);
-// unbuilt legacy sections (General, Integrations, Store Settings) are NOT listed.
+// Live pages only: sections appear here once their page exists (UAT parity A06b).
 
 export interface StoreEditorItem {
   slug: string
@@ -20,6 +19,13 @@ export const STORE_EDITOR_ITEMS: StoreEditorItem[] = [
   { slug: 'blogs', label: 'Blogs', icon: 'rss', routeName: 'StoreBlogs', match: ['StoreBlogs', 'StoreBlogCreate', 'StoreBlogEdit'] },
   { slug: 'campaigns', label: 'Campaigns', icon: 'megaphone', routeName: 'StoreCampaigns', match: ['StoreCampaigns'] },
   { slug: 'assets', label: 'Assets', icon: 'image', routeName: 'StoreAssets', match: ['StoreAssets'] },
+  {
+    slug: 'store-settings',
+    label: 'Store Settings',
+    icon: 'settings',
+    routeName: 'StoreSettingsLanding',
+    match: ['StoreSettingsLanding', 'StoreWebsiteConfiguration', 'StoreAbandonedCartSettings', 'StorePaymentsGateway', 'MaropayOnboarding', 'MaropayManageSettings'],
+  },
 ]
 
 /** Section root for the current route — used by the store switcher to land on the same section. */

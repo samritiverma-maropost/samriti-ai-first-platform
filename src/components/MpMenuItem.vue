@@ -17,9 +17,15 @@ withDefaults(defineProps<{
   icon?: string
   /** Destructive action: renders the error treatment. Place last, after a `<v-divider class="my-1" />`. */
   danger?: boolean
+  disabled?: boolean
 }>(), {
   danger: false,
+  disabled: false,
 })
+
+defineEmits<{
+  click: [event: MouseEvent | KeyboardEvent]
+}>()
 </script>
 
 <template>
@@ -27,7 +33,9 @@ withDefaults(defineProps<{
     role="menuitem"
     :title="title"
     :prepend-icon="icon"
+    :disabled="disabled"
     :class="{ 'text-error': danger }"
+    @click="$emit('click', $event)"
   >
     <template v-for="(_, name) in $slots" #[name]="slotProps">
       <slot :name="name" v-bind="slotProps" />

@@ -157,7 +157,7 @@ export const ONBOARDING_PHASES: OnboardingPhase[] = [
         why: 'No gateway, no revenue — this one unblocks selling.',
         minutes: 5,
         icon: 'credit-card',
-        routeName: 'SettingsPaymentAccount',
+        routeName: 'StorePaymentsSetup',
         cta: 'Add payments',
         cloud: 'commerce',
       },

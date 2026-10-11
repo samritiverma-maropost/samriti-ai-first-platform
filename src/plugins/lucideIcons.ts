@@ -14,8 +14,15 @@ function toPascalCase(name: string): string {
  * Resolve a Lucide icon component by kebab-case name string.
  * Returns null if no matching export is found.
  */
+/** Legacy / MDI-style names that differ from Lucide kebab exports. */
+const LUCIDE_ALIASES: Record<string, string> = {
+  'more-vertical': 'ellipsis-vertical',
+  'more-horizontal': 'ellipsis',
+}
+
 function resolveLucideIcon(name: string): Component | null {
-  const pascal = toPascalCase(name)
+  const resolved = LUCIDE_ALIASES[name] ?? name
+  const pascal = toPascalCase(resolved)
   const icon = (LucideIcons as unknown as Record<string, Component>)[pascal]
   return icon ?? null
 }

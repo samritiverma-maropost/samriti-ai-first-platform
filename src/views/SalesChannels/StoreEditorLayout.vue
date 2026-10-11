@@ -24,6 +24,14 @@ const channelId = computed(() => {
 
 const channel = computed(() => salesChannelsStore.getChannel(accountId.value, channelId.value))
 const showRail = computed(() => channel.value?.type === 'web_store')
+
+const navigationFocus = computed(() => {
+  const name = route.name
+  return (
+    typeof name === 'string' &&
+    ['StoreNavigation', 'StoreNavigationMenuCreate', 'StoreNavigationMenuEdit'].includes(name)
+  )
+})
 </script>
 
 <template>
@@ -39,7 +47,7 @@ const showRail = computed(() => channel.value?.type === 'web_store')
     </v-card>
   </div>
 
-  <div v-else-if="showRail" class="store-shell d-flex">
+  <div v-else-if="showRail" class="store-shell d-flex" :class="{ 'store-shell--navigation': navigationFocus }">
     <StoreEditorSidebar :channel="channel" />
     <main class="store-shell__content">
       <router-view />
@@ -63,6 +71,10 @@ const showRail = computed(() => channel.value?.type === 'web_store')
   min-height: 0;
   overflow-y: auto;
   padding: 24px 36px 32px 32px;
+}
+
+.store-shell--navigation .store-shell__content {
+  padding: var(--mp-space-20) var(--mp-space-24) var(--mp-space-28) var(--mp-space-20);
 }
 
 @media (max-width: 1024px) {

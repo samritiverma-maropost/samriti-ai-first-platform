@@ -9,6 +9,7 @@ import MpFormGrid from '@/components/MpFormGrid.vue'
 import MpEmptyState from '@/components/MpEmptyState.vue'
 import MpRowActionsMenu from '@/components/MpRowActionsMenu.vue'
 import MpMenuItem from '@/components/MpMenuItem.vue'
+import TicketReplyComposer, { type TicketComposerMode } from '@/components/service/TicketReplyComposer.vue'
 import {
   useTicketsStore,
   TICKET_AGENTS,
@@ -200,58 +201,36 @@ function expandToPage() {
   router.push({ name: 'TicketDetail', params: { accountId: accountId.value, id: String(props.ticketId) } })
 }
 
-// ── Composer (Reply / Forward / Note) ────────────────────────────────────────
-const COMPOSER_MODES = ['Reply', 'Forward', 'Note'] as const
-type ComposerMode = (typeof COMPOSER_MODES)[number]
-const composerMode = ref<ComposerMode | null>(null)
-const composer = reactive({
-  from: 'support@maropost.com',
-  to: '',
-  cc: '',
-  bcc: '',
-  body: '',
-  attachments: [] as string[],
-})
-const showCc = ref(false)
-const showBcc = ref(false)
-const FROM_OPTIONS = ['support@maropost.com', 'sushant@maropost.com']
-const SIGNATURE = '\n\nBest Regards,\nDeepak Vaidya'
+// ── Composer (Reply / Forward / Note — Figma AI reply flow) ─────────────────
+const composerMode = ref<TicketComposerMode | null>(null)
 
-function openComposer(mode: ComposerMode) {
+function openComposer(mode: TicketComposerMode) {
   composerMode.value = mode
-  composer.from = FROM_OPTIONS[0]!
-  composer.to = mode === 'Reply' ? (ticket.value?.customerEmail ?? '') : ''
-  composer.cc = ''
-  composer.bcc = ''
-  composer.body = mode === 'Note' ? '' : SIGNATURE
-  composer.attachments = []
-  showCc.value = false
-  showBcc.value = false
   scrollFeedToEnd()
 }
+
 function closeComposer() {
   composerMode.value = null
 }
-const canSend = computed(() => {
-  if (!composerMode.value) return false
-  if (!composer.body.trim()) return false
-  if (composerMode.value !== 'Note' && !composer.to.trim()) return false
-  return true
-})
-function send(setStatus?: TicketStatus) {
-  if (!composerMode.value || !canSend.value) return
+
+function onComposerSend(payload: { body: string; to: string; cc: string; setStatus?: TicketStatus }) {
+  if (!composerMode.value) return
   store.sendMessage(props.ticketId, {
     mode: composerMode.value,
-    to: composer.to,
-    body: composer.body.trim(),
-    setStatus,
+    to: payload.to,
+    body: payload.body,
+    setStatus: payload.setStatus,
   })
-  const verb = composerMode.value === 'Note' ? 'Note added' : composerMode.value === 'Forward' ? 'Ticket forwarded' : 'Reply sent'
-  toast.success(setStatus ? `${verb} — status set to ${setStatus}` : verb)
+  const verb =
+    composerMode.value === 'Note'
+      ? 'Note added'
+      : composerMode.value === 'Forward'
+        ? 'Ticket forwarded'
+        : 'Reply sent'
+  toast.success(payload.setStatus ? `${verb} — status set to ${payload.setStatus}` : verb)
   closeComposer()
   scrollFeedToEnd()
 }
-const SEND_AND_SET: TicketStatus[] = ['Pending', 'On Hold', 'Closed']
 </script>
 
 <template>
@@ -394,84 +373,15 @@ const SEND_AND_SET: TicketStatus[] = ['Pending', 'On Hold', 'Closed']
 
         <!-- Docked footer: the composer replaces the action bar while it is open -->
         <div class="tw-foot border-t flex-shrink-0 d-flex flex-column">
-          <v-card v-if="composerMode" flat border rounded="lg" class="tw-composer ma-4">
-            <div class="d-flex align-center ga-2 px-3 py-2 border-b">
-              <!-- Composer chrome, not form fields: placeholder + aria-label, details
-                   suppressed so the control row can never shift height. -->
-              <v-select
-                :model-value="composerMode"
-                :items="[...COMPOSER_MODES]"
-                aria-label="Message type"
-                hide-details
-                density="compact"
-                class="tw-composer__mode"
-                @update:model-value="(mode: ComposerMode) => openComposer(mode)"
-              ></v-select>
-              <v-select
-                v-if="composerMode !== 'Note'"
-                v-model="composer.from"
-                :items="FROM_OPTIONS"
-                aria-label="From address"
-                hide-details
-                density="compact"
-                prepend-inner-icon="at-sign"
-                class="tw-composer__from"
-              ></v-select>
-              <v-spacer />
-              <v-btn icon="paperclip" variant="text" size="small" aria-label="Attach a file" @click="mockAttach(composer)"></v-btn>
-            </div>
-
-            <div v-if="composerMode !== 'Note'" class="d-flex align-center ga-2 px-3 py-1 border-b">
-              <v-text-field v-model="composer.to" placeholder="To" aria-label="To" hide-details density="compact"></v-text-field>
-              <v-btn v-if="!showCc" variant="text" size="small" class="text-none" @click="showCc = true">Cc</v-btn>
-              <v-btn v-if="!showBcc" variant="text" size="small" class="text-none" @click="showBcc = true">Bcc</v-btn>
-            </div>
-            <div v-if="showCc" class="px-3 py-1 border-b">
-              <v-text-field v-model="composer.cc" placeholder="Cc" aria-label="Cc" hide-details density="compact"></v-text-field>
-            </div>
-            <div v-if="showBcc" class="px-3 py-1 border-b">
-              <v-text-field v-model="composer.bcc" placeholder="Bcc" aria-label="Bcc" hide-details density="compact"></v-text-field>
-            </div>
-
-            <v-textarea
-              v-model="composer.body"
-              :placeholder="composerMode === 'Note' ? 'Write an internal note…' : 'Write your message…'"
-              :aria-label="composerMode === 'Note' ? 'Internal note' : 'Message body'"
-              rows="5"
-              hide-details
-              class="tw-composer-body"
-            ></v-textarea>
-
-            <div v-if="composer.attachments.length" class="d-flex flex-wrap ga-2 px-3 pt-2">
-              <v-chip v-for="(file, i) in composer.attachments" :key="file" size="small" closable
-                prepend-icon="paperclip" @click:close="composer.attachments.splice(i, 1)">{{ file }}</v-chip>
-            </div>
-
-            <div class="d-flex align-center ga-2 pa-3">
-              <v-btn variant="text" class="text-none" @click="closeComposer">Cancel</v-btn>
-              <!-- Rich text is out of scope (see GAPS.md); say so instead of showing dead controls. -->
-              <span class="text-caption text-medium-emphasis">Plain text</span>
-              <v-spacer />
-              <template v-if="composerMode === 'Note'">
-                <v-btn color="primary" variant="flat" class="text-none" :disabled="!canSend" @click="send()">Add note</v-btn>
-              </template>
-              <template v-else>
-                <div class="d-inline-flex">
-                  <v-btn color="primary" variant="flat" class="text-none tw-send" :disabled="!canSend" @click="send()">Send</v-btn>
-                  <v-menu location="top end">
-                    <template #activator="{ props: activator }">
-                      <v-btn v-bind="activator" color="primary" variant="flat" icon="chevron-down" size="small"
-                        class="tw-send-caret" :disabled="!canSend" aria-label="Send and set status"></v-btn>
-                    </template>
-                    <v-list role="menu">
-                      <MpMenuItem v-for="status in SEND_AND_SET" :key="status"
-                        :title="`Send and set as ${status}`" @click="send(status)" />
-                    </v-list>
-                  </v-menu>
-                </div>
-              </template>
-            </div>
-          </v-card>
+          <TicketReplyComposer
+            v-if="composerMode && ticket"
+            :ticket="ticket"
+            :mode="composerMode"
+            :agent-name="ticket.assignee || 'Sam Jones'"
+            @update:mode="openComposer"
+            @send="onComposerSend"
+            @cancel="closeComposer"
+          />
 
           <div v-else class="tw-actions d-flex align-center ga-2">
             <v-btn color="primary" variant="flat" class="text-none" prepend-icon="reply"
@@ -718,24 +628,7 @@ const SEND_AND_SET: TicketStatus[] = ['Pending', 'On Hold', 'Closed']
 
 /* Docked footer: the thread keeps at least 40% of the pane. */
 .tw-foot { max-height: 60%; }
-.tw-composer {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow-y: auto;
-}
 .tw-actions { padding: var(--mp-space-12) var(--mp-component-card-padding); }
-
-/* Composer selects share the toolbar search widths so the chrome sits on one ramp. */
-.tw-composer__mode { max-width: calc(var(--mp-component-toolbar-searchMinWidth) / 2); }
-.tw-composer__from { max-width: var(--mp-component-toolbar-searchWidth); }
-
-/* Split button: flat pair, no double radius between the halves. */
-.tw-send { border-top-right-radius: 0; border-bottom-right-radius: 0; }
-.tw-send-caret { border-top-left-radius: 0; border-bottom-left-radius: 0; height: auto; }
-
-/* The composer body is chrome inside a card, not a labelled form field. */
-.tw-composer-body :deep(.v-field__outline) { display: none; }
 
 /* ── Right rail ─────────────────────────────────────────────────────────── */
 .tw-aside { min-height: 0; }

@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useSalesChannelsStore, type SalesChannel } from '@/stores/useSalesChannels'
 import { STORE_EDITOR_ITEMS, sectionRootForRoute } from './storeEditorMenu'
 import MpSectionRail, { type MpSectionRailGroup, type MpSectionRailSwitchOption } from '@/components/MpSectionRail.vue'
+import StoreEditorIconRail from '@/components/saleschannels/StoreEditorIconRail.vue'
 
 // Store editor rail — entity flavor of MpSectionRail: store identity + switcher
 // above the section links from storeEditorMenu.ts.
@@ -35,11 +36,13 @@ function toItem(item: (typeof STORE_EDITOR_ITEMS)[number]) {
 const groups = computed<MpSectionRailGroup[]>(() => {
   const overview = STORE_EDITOR_ITEMS.find((i) => i.slug === 'overview')
   const theme = STORE_EDITOR_ITEMS.find((i) => i.slug === 'theme')
-  const rest = STORE_EDITOR_ITEMS.filter((i) => i.slug !== 'overview' && i.slug !== 'theme')
+  const storeSettings = STORE_EDITOR_ITEMS.find((i) => i.slug === 'store-settings')
+  const rest = STORE_EDITOR_ITEMS.filter((i) => !['overview', 'theme', 'store-settings'].includes(i.slug))
   return [
     ...(overview ? [{ items: [toItem(overview)] }] : []),
     ...(theme ? [{ title: 'Customize', items: [toItem(theme)] }] : []),
     { title: 'Store content', items: rest.map(toItem) },
+    ...(storeSettings ? [{ title: 'Configuration', items: [toItem(storeSettings)] }] : []),
   ]
 })
 
@@ -55,10 +58,26 @@ function onSwitch(channelId: string) {
   const sectionRoot = sectionRootForRoute(typeof route.name === 'string' ? route.name : undefined)
   router.push({ name: sectionRoot, params: { accountId: accountId.value, channelId } })
 }
+
+const NAVIGATION_ROUTE_NAMES = ['StoreNavigation', 'StoreNavigationMenuCreate', 'StoreNavigationMenuEdit'] as const
+
+const iconOnlyRail = computed(() => {
+  const name = route.name
+  if (typeof name === 'string' && NAVIGATION_ROUTE_NAMES.includes(name as (typeof NAVIGATION_ROUTE_NAMES)[number])) {
+    return true
+  }
+  return route.matched.some(
+    (record) =>
+      typeof record.name === 'string' &&
+      NAVIGATION_ROUTE_NAMES.includes(record.name as (typeof NAVIGATION_ROUTE_NAMES)[number]),
+  )
+})
 </script>
 
 <template>
+  <StoreEditorIconRail v-if="iconOnlyRail" :channel="channel" />
   <MpSectionRail
+    v-else
     ariaLabel="Store editor navigation"
     :back-to="{ name: 'SalesChannels', params: { accountId } }"
     back-label="All sales channels"

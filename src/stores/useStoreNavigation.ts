@@ -1,11 +1,7 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
-
-// Storefront navigation menus (store editor ▸ Navigation).
-// Legacy parity notes (sandbox crawl 2026-07-10, docs/uat-parity/parity-tracker.md A06b):
-// menus are FLAT ordered lists of {title, link} rows — no nesting. Link targets are
-// either a fixed storefront page, a picked resource (collection/product/page), or a
-// pasted custom URL. Menus carry an Active/Inactive status (create defaults Inactive).
+import type { NavResourceType } from '@/constants/navigationCatalog'
+import { findCatalogNode } from '@/constants/navigationCatalog'
 
 export type MenuLinkType =
   | 'homepage'
@@ -21,10 +17,10 @@ export interface MenuLinkTypeDef {
   value: MenuLinkType
   label: string
   icon: string
-  /** true → a specific resource must be picked; false → the link is fixed (or a free URL for 'url'). */
   requiresResource: boolean
 }
 
+/** @deprecated Prefer NAV_RESOURCE_TYPE_OPTIONS — kept for campaign targets. */
 export const MENU_LINK_TYPES: MenuLinkTypeDef[] = [
   { value: 'homepage', label: 'Homepage', icon: 'home', requiresResource: false },
   { value: 'search', label: 'Search', icon: 'search', requiresResource: false },
@@ -65,47 +61,101 @@ export const LINK_RESOURCES: Partial<Record<MenuLinkType, LinkResource[]>> = {
   ],
 }
 
-const FIXED_LINK_URLS: Partial<Record<MenuLinkType, string>> = {
+const FIXED_LINK_URLS: Partial<Record<NavResourceType, string>> = {
   homepage: '/',
   search: '/search',
-  'collection-list': '/collections',
+  collection_list: '/collections',
   blog: '/blog',
 }
 
 export type MenuStatus = 'Active' | 'Inactive'
 
+export type MenuImageSource = 'none' | 'collection' | 'custom'
+
 export interface MenuItem {
   id: string
   title: string
-  linkType: MenuLinkType
-  /** Resource id for resource-backed types, the URL itself for 'url', empty for fixed links. */
+  resourceType: NavResourceType
   target: string
+  linkedLabel?: string
+  linkedIds?: string[]
+  includeChildren?: boolean
+  hidden?: boolean
+  imageSource?: MenuImageSource
+  /** Catalog subtree size — drives “Included” copy (e.g. 2 of 15). */
+  childTotal?: number
+  children: MenuItem[]
+  /** Da Vinci draft row — design-ready menu builder. */
+  aiDraft?: boolean
+  /** Legacy flat-editor field — migrated to resourceType on read. */
+  linkType?: MenuLinkType
 }
 
 export interface StoreMenu {
   id: string
   channelId: string
   name: string
-  /** Slug referenced by theme code/templates (e.g. 'main-menu'). Derived from the name. */
   handle: string
   status: MenuStatus
   updatedAt: string
   items: MenuItem[]
 }
 
-// ── Pure helpers (the editor runs these on its local draft) ──────────────────
-
 let itemIdCounter = 0
 
-export function createMenuItem(overrides: Partial<Omit<MenuItem, 'id'>> = {}, id?: string): MenuItem {
-  itemIdCounter += 1
+function linkTypeToResource(type: MenuLinkType): NavResourceType {
+  if (type === 'url') return 'custom_url'
+  if (type === 'collection-list') return 'collection_list'
+  if (type === 'blog') return 'blog'
+  if (type === 'page') return 'page'
+  if (type === 'collection') return 'collection'
+  if (type === 'product') return 'product'
+  if (type === 'search') return 'search'
+  return 'homepage'
+}
+
+function normalizeItem(raw: Partial<MenuItem> & { linkType?: MenuLinkType }): MenuItem {
+  const resourceType = raw.resourceType ?? (raw.linkType ? linkTypeToResource(raw.linkType) : 'custom_url')
+  const linkedLabel =
+    raw.linkedLabel ??
+    (resourceType === 'collection' || resourceType === 'page' || resourceType === 'product'
+      ? LINK_RESOURCES[resourceType === 'product' ? 'product' : resourceType === 'page' ? 'page' : 'collection']?.find(
+          (r) => r.id === raw.target,
+        )?.label
+      : resourceType === 'category'
+        ? findCatalogNode('category', raw.target ?? '')?.label
+        : undefined)
+
   return {
-    id: id ?? `mi-${Date.now().toString(36)}-${itemIdCounter}`,
-    title: '',
-    linkType: 'homepage',
-    target: '',
-    ...overrides,
+    id: raw.id ?? createMenuItemId(),
+    title: raw.title ?? '',
+    resourceType,
+    target: raw.target ?? '',
+    linkedLabel,
+    linkedIds: raw.linkedIds ?? (raw.target ? [raw.target] : []),
+    includeChildren: raw.includeChildren ?? false,
+    hidden: raw.hidden ?? false,
+    imageSource: raw.imageSource ?? 'none',
+    childTotal: raw.childTotal,
+    aiDraft: raw.aiDraft ?? false,
+    children: (raw.children ?? []).map((child) => normalizeItem(child)),
   }
+}
+
+function createMenuItemId(): string {
+  itemIdCounter += 1
+  return `mi-${Date.now().toString(36)}-${itemIdCounter}`
+}
+
+export function createMenuItem(overrides: Partial<Omit<MenuItem, 'id'>> = {}, id?: string): MenuItem {
+  return normalizeItem({
+    id: id ?? createMenuItemId(),
+    title: '',
+    resourceType: 'custom_url',
+    target: '/',
+    children: [],
+    ...overrides,
+  })
 }
 
 export function createMenuDraft(channelId: string): StoreMenu {
@@ -117,10 +167,11 @@ export function createMenuDraft(channelId: string): StoreMenu {
     handle: '',
     status: 'Inactive',
     updatedAt: '',
-    items: [createMenuItem()],
+    items: [],
   }
 }
 
+/** @deprecated Use navigationTreeUtils.moveMenuItemFlat in the tree editor. */
 export function moveItem(items: MenuItem[], id: string, offset: -1 | 1): void {
   const index = items.findIndex((item) => item.id === id)
   const next = index + offset
@@ -129,6 +180,7 @@ export function moveItem(items: MenuItem[], id: string, offset: -1 | 1): void {
   if (item) items.splice(next, 0, item)
 }
 
+/** @deprecated Use navigationTreeUtils.removeMenuItem. */
 export function removeItem(items: MenuItem[], id: string): void {
   const index = items.findIndex((item) => item.id === id)
   if (index !== -1) items.splice(index, 1)
@@ -151,11 +203,24 @@ export function slugifyHandle(name: string, taken: string[] = []): string {
 }
 
 export function resolveItemUrl(item: MenuItem): string {
-  const fixed = FIXED_LINK_URLS[item.linkType]
+  const fixed = FIXED_LINK_URLS[item.resourceType]
   if (fixed) return fixed
-  if (item.linkType === 'url') return item.target
-  const resource = LINK_RESOURCES[item.linkType]?.find((r) => r.id === item.target)
-  return resource?.url ?? ''
+  if (item.resourceType === 'custom_url') return item.target
+  if (item.resourceType === 'category') {
+    const node = findCatalogNode('category', item.target)
+    return node ? `/collections/${node.label.toLowerCase().replace(/\s+/g, '-')}` : '/collections'
+  }
+  if (item.resourceType === 'blog') {
+    const node = findCatalogNode('blog', item.target)
+    return node ? `/blogs/${node.label.toLowerCase().replace(/\s+/g, '-')}` : '/blog'
+  }
+  const legacyKey =
+    item.resourceType === 'collection' ? 'collection' : item.resourceType === 'page' ? 'page' : item.resourceType === 'product' ? 'product' : undefined
+  if (legacyKey) {
+    const resource = LINK_RESOURCES[legacyKey]?.find((r) => r.id === item.target)
+    return resource?.url ?? ''
+  }
+  return item.target
 }
 
 const FALLBACK_LINK_TYPE: MenuLinkTypeDef = { value: 'homepage', label: 'Homepage', icon: 'home', requiresResource: false }
@@ -164,57 +229,155 @@ export function linkTypeDef(type: MenuLinkType): MenuLinkTypeDef {
   return MENU_LINK_TYPES.find((def) => def.value === type) ?? FALLBACK_LINK_TYPE
 }
 
-/** Human caption for a row's link, e.g. "Collection · New Arrivals" or "https://…". */
 export function itemLinkLabel(item: MenuItem): string {
-  const def = linkTypeDef(item.linkType)
-  if (item.linkType === 'url') return item.target || 'Custom URL'
-  if (!def.requiresResource) return def.label
-  const resource = LINK_RESOURCES[item.linkType]?.find((r) => r.id === item.target)
-  return resource ? `${def.label} · ${resource.label}` : def.label
+  if (item.resourceType === 'custom_url') return item.target || 'Custom URL'
+  const typeLabel = NAV_LABELS[item.resourceType] ?? item.resourceType
+  if (item.linkedLabel) return `${typeLabel} · ${item.linkedLabel}`
+  if (FIXED_LINK_URLS[item.resourceType]) return typeLabel
+  return typeLabel
+}
+
+/** Subtitle under each row in the menu structure tree (design-ready breadcrumbs). */
+export function itemTreeSubtitle(item: MenuItem, depth: number, ancestorLabels: string[]): string {
+  const typeLabel =
+    item.resourceType === 'category' || item.resourceType === 'collection'
+      ? 'Collection'
+      : NAV_LABELS[item.resourceType] ?? item.resourceType
+  const name = (item.linkedLabel?.split(',')[0] ?? item.linkedLabel)?.trim() || item.title
+  if (depth === 1) return `${typeLabel} - ${name}`
+  return `${typeLabel} ${[...ancestorLabels, name].join(' → ')}`
+}
+
+export function linkedResourceSummary(item: MenuItem): string {
+  const typeLabel =
+    item.resourceType === 'category' || item.resourceType === 'collection'
+      ? 'Collection'
+      : NAV_LABELS[item.resourceType] ?? item.resourceType
+  const name = (item.linkedLabel?.split(',')[0] ?? item.linkedLabel)?.trim() || item.title
+  return `${typeLabel} - ${name}`
+}
+
+const NAV_LABELS: Partial<Record<NavResourceType, string>> = {
+  homepage: 'Home page',
+  search: 'Search',
+  collection_list: 'Collection list',
+  blog: 'Blog',
+  collection: 'Collection',
+  category: 'Category',
+  page: 'Page',
+  product: 'Product',
 }
 
 export function itemIsComplete(item: MenuItem): boolean {
   if (!item.title.trim()) return false
-  const def = linkTypeDef(item.linkType)
-  if (def.requiresResource || item.linkType === 'url') return item.target.trim().length > 0
+  if (item.resourceType === 'custom_url') return item.target.trim().length > 0
+  if (['collection', 'category', 'page', 'blog', 'product'].includes(item.resourceType)) {
+    return item.target.trim().length > 0 || Boolean(item.linkedIds?.length)
+  }
   return true
 }
 
-// ── Seeds ─────────────────────────────────────────────────────────────────────
-// Handles 'main-menu' / 'footer-menu' on the Atlas channel keep the string refs in
-// src/stores/themeCodeData.ts coherent.
+export function flattenMenuItemTitles(items: MenuItem[]): string[] {
+  const titles: string[] = []
+  function walk(nodes: MenuItem[]) {
+    for (const node of nodes) {
+      if (node.title.trim()) titles.push(node.title.trim())
+      if (node.children?.length) walk(node.children)
+    }
+  }
+  walk(items)
+  return titles
+}
 
 function seedMenus(): StoreMenu[] {
   return [
     {
       id: 'menu-atlas-main',
       channelId: 'retest-sales-notification',
-      name: 'Main menu',
+      name: 'Main Menu',
       handle: 'main-menu',
       status: 'Active',
       updatedAt: 'Jul 8, 2026',
       items: [
-        createMenuItem({ title: 'Home', linkType: 'homepage' }, 'mi-atlas-home'),
-        createMenuItem({ title: 'Shop all', linkType: 'collection-list' }, 'mi-atlas-shop'),
-        createMenuItem({ title: 'New arrivals', linkType: 'collection', target: 'col-new-arrivals' }, 'mi-atlas-new'),
-        createMenuItem({ title: 'Best sellers', linkType: 'collection', target: 'col-best-sellers' }, 'mi-atlas-best'),
-        createMenuItem({ title: 'Blog', linkType: 'blog' }, 'mi-atlas-blog'),
-        createMenuItem({ title: 'About', linkType: 'page', target: 'page-about' }, 'mi-atlas-about'),
+        createMenuItem(
+          {
+            title: 'Furniture',
+            resourceType: 'collection',
+            target: 'col-furn',
+            linkedLabel: 'Furniture',
+            linkedIds: ['col-furn', 'col-sofas', 'col-seats', 'col-3s'],
+            includeChildren: true,
+            imageSource: 'collection',
+            childTotal: 15,
+            children: [
+              createMenuItem(
+                {
+                  title: 'Sofas',
+                  resourceType: 'collection',
+                  target: 'col-sofas',
+                  linkedLabel: 'Sofas',
+                  linkedIds: ['col-sofas', 'col-seats', 'col-3s'],
+                  imageSource: 'collection',
+                  childTotal: 4,
+                  children: [
+                    createMenuItem(
+                      {
+                        title: 'Seats',
+                        resourceType: 'collection',
+                        target: 'col-seats',
+                        linkedLabel: 'Seats',
+                        linkedIds: ['col-seats'],
+                        imageSource: 'collection',
+                      },
+                      'mi-furn-seats',
+                    ),
+                    createMenuItem(
+                      {
+                        title: '3 Seater',
+                        resourceType: 'collection',
+                        target: 'col-3s',
+                        linkedLabel: '3 Seater',
+                        linkedIds: ['col-3s'],
+                        imageSource: 'collection',
+                      },
+                      'mi-furn-3s',
+                    ),
+                  ],
+                },
+                'mi-furn-sofas',
+              ),
+              createMenuItem(
+                {
+                  title: 'Tables',
+                  resourceType: 'collection',
+                  target: 'col-tables',
+                  linkedLabel: 'Tables',
+                  linkedIds: ['col-tables'],
+                  imageSource: 'collection',
+                  childTotal: 3,
+                  children: [],
+                },
+                'mi-furn-tables',
+              ),
+            ],
+          },
+          'mi-furn-root',
+        ),
       ],
     },
     {
       id: 'menu-atlas-footer',
       channelId: 'retest-sales-notification',
-      name: 'Footer menu',
+      name: 'Footer Menu',
       handle: 'footer-menu',
       status: 'Active',
       updatedAt: 'Jul 2, 2026',
       items: [
-        createMenuItem({ title: 'Search', linkType: 'search' }, 'mi-atlas-search'),
-        createMenuItem({ title: 'Privacy policy', linkType: 'page', target: 'page-privacy' }, 'mi-atlas-privacy'),
-        createMenuItem({ title: 'Terms and conditions', linkType: 'page', target: 'page-terms' }, 'mi-atlas-terms'),
-        createMenuItem({ title: 'Shipping & returns', linkType: 'page', target: 'page-shipping' }, 'mi-atlas-shipping'),
-        createMenuItem({ title: 'Contact', linkType: 'url', target: 'https://atlas-outfitters.com/contact' }, 'mi-atlas-contact'),
+        createMenuItem({ title: 'Search', resourceType: 'search' }, 'mi-atlas-search'),
+        createMenuItem({ title: 'Privacy policy', resourceType: 'page', target: 'page-privacy', linkedLabel: 'Privacy policy' }, 'mi-atlas-privacy'),
+        createMenuItem({ title: 'Terms and conditions', resourceType: 'page', target: 'page-terms', linkedLabel: 'Terms and conditions' }, 'mi-atlas-terms'),
+        createMenuItem({ title: 'Shipping & returns', resourceType: 'page', target: 'page-shipping', linkedLabel: 'Shipping & returns' }, 'mi-atlas-shipping'),
+        createMenuItem({ title: 'Contact', resourceType: 'custom_url', target: 'https://atlas-outfitters.com/contact' }, 'mi-atlas-contact'),
       ],
     },
     {
@@ -225,8 +388,8 @@ function seedMenus(): StoreMenu[] {
       status: 'Inactive',
       updatedAt: 'Jun 24, 2026',
       items: [
-        createMenuItem({ title: 'Gift guide', linkType: 'collection', target: 'col-sale' }, 'mi-atlas-gifts'),
-        createMenuItem({ title: 'Sale', linkType: 'collection', target: 'col-sale' }, 'mi-atlas-sale'),
+        createMenuItem({ title: 'Gift guide', resourceType: 'collection', target: 'col-sale', linkedLabel: 'Sale' }, 'mi-atlas-gifts'),
+        createMenuItem({ title: 'Sale', resourceType: 'collection', target: 'col-sale', linkedLabel: 'Sale' }, 'mi-atlas-sale'),
       ],
     },
     {
@@ -237,8 +400,8 @@ function seedMenus(): StoreMenu[] {
       status: 'Active',
       updatedAt: 'Jul 5, 2026',
       items: [
-        createMenuItem({ title: 'Home', linkType: 'homepage' }, 'mi-beta-home'),
-        createMenuItem({ title: 'Shop', linkType: 'collection-list' }, 'mi-beta-shop'),
+        createMenuItem({ title: 'Home', resourceType: 'homepage' }, 'mi-beta-home'),
+        createMenuItem({ title: 'Shop', resourceType: 'collection_list' }, 'mi-beta-shop'),
       ],
     },
   ]
@@ -255,14 +418,13 @@ export const useStoreNavigationStore = defineStore('storeNavigation', () => {
     return menus.value.find((menu) => menu.id === menuId)
   }
 
-  /** Upsert by id (create + edit share it). Deep-clones the draft in and stamps updatedAt. */
   function saveMenu(draft: StoreMenu): StoreMenu {
     const taken = menus.value.filter((m) => m.id !== draft.id && m.channelId === draft.channelId).map((m) => m.handle)
     const saved: StoreMenu = {
       ...draft,
       handle: draft.handle || slugifyHandle(draft.name, taken),
       updatedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      items: draft.items.map((item) => ({ ...item })),
+      items: draft.items.map((item) => normalizeItem(item)),
     }
     const index = menus.value.findIndex((menu) => menu.id === draft.id)
     if (index === -1) menus.value.push(saved)
