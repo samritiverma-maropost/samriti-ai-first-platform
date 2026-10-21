@@ -45,6 +45,8 @@ export interface CatalogDraft {
   price?: string
   /** Size (or option) ladder when the merchant asked for per-size pricing without stating amounts. */
   variantPrices?: string[]
+  /** Enrich: update price on specific variant rows only (matched by title). */
+  variantPriceUpdates?: { title: string; price: string }[]
   seoTitle?: string
   seoMetaDescription?: string
 }
@@ -62,6 +64,8 @@ export interface ProductSnapshot {
   options: ProductOption[]
   /** Representative variant price (for enrich price updates). */
   price?: string
+  /** Variant grid rows for scoped price updates. */
+  variantRows?: { title: string; price: string }[]
   seo?: { title: string; metaDescription: string; urlHandle: string }
 }
 
@@ -438,8 +442,57 @@ function isPriceOnlyPrompt(text: string): boolean {
 }
 
 function variantCountFromSnapshot(snapshot: ProductSnapshot): number {
-  if (!snapshot.options.length) return 1
-  return snapshot.options.reduce((n, o) => n * Math.max(1, o.values.length), 1)
+  const rows = variantRowsFromSnapshot(snapshot)
+  return rows.length || 1
+}
+
+function variantRowsFromSnapshot(snapshot: ProductSnapshot): { title: string; price: string }[] {
+  if (snapshot.variantRows?.length) return snapshot.variantRows
+  if (!snapshot.options.length) {
+    return [{ title: 'Default variant', price: snapshot.price ?? '' }]
+  }
+  let combos: string[][] = [[]]
+  for (const opt of snapshot.options) {
+    const next: string[][] = []
+    for (const row of combos) {
+      for (const value of opt.values) next.push([...row, value])
+    }
+    combos = next
+  }
+  return combos.map((parts) => ({ title: parts.join(' / '), price: snapshot.price ?? '' }))
+}
+
+/** True when the merchant named one variant (e.g. "Red pen only"), not "all" or "each". */
+function wantsSingleVariantPrice(text: string): boolean {
+  if (/\bfor each\b|\beach variant\b|\ball \d+ variants?\b|\bevery variant\b/i.test(text)) return false
+  if (/\bonly\b|\bjust\b/i.test(text)) return true
+  if (/\b(?:for|on)\s+(?:the\s+)?[\p{L}][\p{L}\p{N}\s-]{0,24}(?:pen|variant|colour|color|size|sku)\b/iu.test(text)) return true
+  const colours = parseColours(text)
+  return colours.length === 1 && mentionsPriceChange(text)
+}
+
+function parseVariantForPriceUpdate(text: string, snapshot: ProductSnapshot): string | undefined {
+  if (!wantsSingleVariantPrice(text)) return undefined
+  const rows = variantRowsFromSnapshot(snapshot)
+  const lower = text.toLowerCase()
+
+  for (const colour of parseColours(text)) {
+    const c = colour.toLowerCase()
+    const hit = rows.find((r) => r.title.toLowerCase() === c || r.title.toLowerCase().split(/\s*\/\s*/).some((p) => p.toLowerCase() === c))
+    if (hit) return hit.title
+  }
+
+  for (const row of rows) {
+    for (const part of row.title.split(/\s*\/\s*/)) {
+      const p = part.trim().toLowerCase()
+      if (p.length < 2) continue
+      if (!lower.includes(p)) continue
+      if (/\bonly\b|\bjust\b/i.test(text) || new RegExp(`\\b(?:for|on)\\s+(?:the\\s+)?(?:[\\w\\s]{0,16})?${p}\\b`, 'i').test(text)) {
+        return row.title
+      }
+    }
+  }
+  return undefined
 }
 
 function parseBrand(text: string, vocab: CatalogVocab): string | undefined {
@@ -1008,6 +1061,37 @@ export function generateEnrichDraft(
 
   const priceUpdate = parsePrice(prompt)
   if (isPriceOnlyPrompt(prompt) && priceUpdate) {
+    const rows = variantRowsFromSnapshot(snapshot)
+    const variantTitle = parseVariantForPriceUpdate(prompt, snapshot)
+    if (variantTitle) {
+      const currentRow = rows.find((r) => r.title === variantTitle)
+      const currentPrice = currentRow?.price?.trim() || ''
+      if (sameValue(priceUpdate, currentPrice)) {
+        return {
+          ok: false,
+          code: 'no_changes',
+          message: `${variantTitle} is already priced at $${priceUpdate}.`,
+          steps,
+        }
+      }
+      const others = rows.filter((r) => r.title !== variantTitle).map((r) => r.title)
+      return {
+        ok: true,
+        draft: {
+          price: priceUpdate,
+          variantPriceUpdates: [{ title: variantTitle, price: priceUpdate }],
+        },
+        keys: ['price'],
+        current: { price: currentPrice || undefined },
+        intro: `Set ${variantTitle} to $${priceUpdate} only.`,
+        explanation: `I’ll change the price for ${variantTitle} to $${priceUpdate}. Other variants stay as they are until you click Save.`,
+        gaps: [],
+        notes: others.length ? [`${listOf(others)} keep their current prices.`] : [],
+        steps: ['Read the current product', 'Apply the new price'],
+        refinements: [],
+      }
+    }
+
     const currentPrice = snapshot.price?.trim() || ''
     if (sameValue(priceUpdate, currentPrice)) {
       return {
@@ -1017,7 +1101,7 @@ export function generateEnrichDraft(
         steps,
       }
     }
-    const variants = variantCountFromSnapshot(snapshot)
+    const variants = rows.length
     const intro = variants > 1
       ? `Set price to $${priceUpdate} for all ${variants} variants.`
       : `Set price to $${priceUpdate}.`

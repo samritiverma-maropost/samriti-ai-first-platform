@@ -173,6 +173,7 @@ function buildSnapshot(): ProductSnapshot {
     collection: f.detail.collection ?? '',
     options: f.detail.options.map((o) => ({ name: o.name, values: [...o.values] })),
     price: variantRows.value[0]?.price ?? f.price,
+    variantRows: variantRows.value.map((v) => ({ title: v.title, price: v.price ?? '' })),
     seo: { title: f.seo.title, metaDescription: f.seo.metaDescription, urlHandle: f.seo.urlHandle },
   }
 }
@@ -201,7 +202,14 @@ function applyDaVinci(payload: CatalogApplyPayload) {
   if (f.collection !== undefined) target.detail.collection = f.collection
   if (f.seoTitle !== undefined) target.seo.title = f.seoTitle
   if (f.seoMetaDescription !== undefined) target.seo.metaDescription = f.seoMetaDescription
-  if (f.price !== undefined) {
+  if (f.variantPriceUpdates?.length) {
+    for (const patch of f.variantPriceUpdates) {
+      const row = target.detail.variantsList.find(
+        (v) => v.title === patch.title || v.title.toLowerCase() === patch.title.toLowerCase(),
+      )
+      if (row) row.price = patch.price
+    }
+  } else if (f.price !== undefined) {
     target.price = f.price
     target.detail.variantsList.forEach((v) => { v.price = f.price! })
   }

@@ -1102,6 +1102,7 @@ async function onCatalogApply(card: CatalogDraftProps, keys: CatalogFieldKey[]) 
   catalog.track('MCC - Da Vinci Catalog - Apply Clicked', { mode: card.mode, fields_applied_count: keys.length })
   const fields: CatalogDraft = {}
   for (const key of keys) Object.assign(fields, { [key]: card.draft[key] })
+  if (card.draft.variantPriceUpdates?.length) fields.variantPriceUpdates = card.draft.variantPriceUpdates
   applyingDraftId.value = card.draftId
   let result: CatalogApplyResult
   try {

@@ -129,6 +129,25 @@ test('SEO generate without a title fails with missing_title and drafts nothing',
   assert.equal(outcome.ok ? '' : outcome.code, 'missing_title')
 })
 
+test('enrich price for one colour updates that variant only', () => {
+  const snap = snapshot({
+    name: 'Pen',
+    description: 'Pen desc',
+    options: [{ name: 'Colour', values: ['Black', 'Green', 'Red'] }],
+    variantRows: [
+      { title: 'Black', price: '10.00' },
+      { title: 'Green', price: '10.00' },
+      { title: 'Red', price: '10.00' },
+    ],
+    price: '10.00',
+  })
+  const { draft, intro, notes } = ok(generateEnrichDraft(snap, 'all', 'increase price for Red pen only. make it $15', VOCAB))
+  assert.match(intro, /Red/i)
+  assert.match(intro, /only/i)
+  assert.deepEqual(draft.variantPriceUpdates, [{ title: 'Red', price: '15.00' }])
+  assert.ok(notes.some((n) => /Black/i.test(n) && /Green/i.test(n)))
+})
+
 test('enrich price-only prompt targets $15 for every variant, not description or SEO', () => {
   const snap = snapshot({
     name: 'Pen',
