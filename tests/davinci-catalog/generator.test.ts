@@ -67,6 +67,30 @@ test('explicit sizes and colours become options', () => {
   assert.match(draft.description ?? '', /Available in sizes S–XL, in Black, White and Navy\./)
 })
 
+test('"coffee cup in 3 sizes" drafts Small, Medium, Large size options', () => {
+  const { draft } = ok(generateCreateDraft('Add a coffee cup called Daily Brew in 3 sizes', VOCAB))
+  assert.equal(draft.title, 'Daily Brew')
+  assert.deepEqual(draft.options, [{ name: 'Size', values: ['Small', 'Medium', 'Large'] }])
+})
+
+test('"product name Toothpaste" with 3 sizes and pricing by size drafts variants and tier prices', () => {
+  const prompt = 'add product name Toothpaste, i need 3 sizes for this. and add Pricing according to the size'
+  const { draft } = ok(generateCreateDraft(prompt, VOCAB))
+  assert.equal(draft.title, 'Toothpaste')
+  assert.deepEqual(draft.options, [{ name: 'Size', values: ['Small', 'Medium', 'Large'] }])
+  assert.deepEqual(draft.variantPrices, ['7.99', '9.99', '11.99'])
+  assert.equal(draft.price, undefined)
+  assert.deepEqual(draft.categories, ['Beauty & Health'])
+})
+
+test('casual "add Pen in three clours" with listed colours and $10 drafts colour variants', () => {
+  const prompt = 'add Pen in three clours. Black, green and red price for each pen will be $10'
+  const { draft } = ok(generateCreateDraft(prompt, VOCAB))
+  assert.equal(draft.title, 'Pen')
+  assert.deepEqual(draft.options, [{ name: 'Colour', values: ['Black', 'Green', 'Red'] }])
+  assert.equal(draft.price, '10.00')
+})
+
 test('"in white and sage, priced at $24" yields a colour option and a price, not a size', () => {
   const { draft } = ok(generateCreateDraft('Add a ceramic coffee mug called Morning Ritual in white and sage, priced at $24', VOCAB))
   assert.equal(draft.title, 'Morning Ritual')
@@ -103,6 +127,19 @@ test('SEO generate without a title fails with missing_title and drafts nothing',
   const outcome = generateEnrichDraft(snapshot({ name: '' }), 'seo', 'Write the SEO title', VOCAB)
   assert.equal(outcome.ok, false)
   assert.equal(outcome.ok ? '' : outcome.code, 'missing_title')
+})
+
+test('enrich price-only prompt targets $15 for every variant, not description or SEO', () => {
+  const snap = snapshot({
+    name: 'Pen',
+    description: 'Pen is made for everyday use.',
+    options: [{ name: 'Colour', values: ['Black', 'Green', 'Red'] }],
+    price: '10.00',
+  })
+  const { draft, keys, intro } = ok(generateEnrichDraft(snap, 'all', 'Increase price from $10 to $15 each', VOCAB))
+  assert.deepEqual(keys, ['price'])
+  assert.equal(draft.price, '15.00')
+  assert.match(intro, /3 variants/)
 })
 
 test('enrich suggests only fields that change, never brand, price or title', () => {

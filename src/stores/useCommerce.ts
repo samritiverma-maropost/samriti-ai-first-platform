@@ -39,6 +39,8 @@ const STORE_LOCATION_IDS = ['loc-bondi', 'loc-chadstone', 'loc-auckland', 'loc-s
 
 export type ProductType = 'product' | 'kit'
 export type PublishStatus = 'Draft' | 'Published'
+/** How the merchant first created this row (wizard / Da Vinci Apply). */
+export type ProductCreatedVia = 'davinci' | 'manual'
 
 export interface ProductOption {
   name: string
@@ -122,6 +124,9 @@ export interface Product {
   productType: string
   detail?: ProductDetail
   components?: KitComponent[]
+  createdVia?: ProductCreatedVia
+  /** Wizard-created rows persisted for the browser session (until refresh). */
+  merchantPersisted?: boolean
 }
 
 /** Product types offered in the Products filter drawer. */
@@ -156,6 +161,7 @@ export interface ProductDraftInput {
   publishStatus: PublishStatus
   detail?: ProductDetail
   components?: KitComponent[]
+  createdVia?: ProductCreatedVia
 }
 
 export interface InventoryItem {
@@ -719,10 +725,11 @@ function buildPosOrders(): Order[] {
   })
 }
 
-export const useCommerceStore = defineStore('commerce', () => {
-  const products = ref<Product[]>(productNames.map((name, i) => {
+const MERCHANT_PRODUCTS_KEY = 'mp.commerce.merchant-products.v1'
+
+function buildSeedProducts(): Product[] {
+  return productNames.map((name, i) => {
     const inv = i < 3 ? 0 : Math.floor(Math.random() * 500) + 5
-    // Deterministic, so the storefront's product pages, cart and orders agree across reloads.
     const price = (15 + ((i * 7919) % 45000) / 100).toFixed(2)
     return {
       id: 1000 + i,
@@ -736,13 +743,44 @@ export const useCommerceStore = defineStore('commerce', () => {
       vendor: VENDORS[i % VENDORS.length]!,
       images: 1,
       variants: Math.floor(Math.random() * 4) + 1,
-      type: 'product',
-      publishStatus: i === 0 ? 'Draft' : 'Published',
+      type: 'product' as const,
+      publishStatus: (i === 0 ? 'Draft' : 'Published') as PublishStatus,
       collections: i % 3 === 0 ? [categories[i % categories.length]!] : [categories[i % categories.length]!, categories[(i + 1) % categories.length]!],
       salesChannelNames: i % 4 === 0 ? [] : ['Online Store'],
       productType: PRODUCT_TYPES[i % PRODUCT_TYPES.length]!,
     }
-  }))
+  })
+}
+
+function loadMerchantProducts(): Product[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = window.localStorage.getItem(MERCHANT_PRODUCTS_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as Product[]
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function saveMerchantProducts(all: Product[]) {
+  if (typeof window === 'undefined') return
+  try {
+    const merchant = all.filter((p) => p.merchantPersisted)
+    window.localStorage.setItem(MERCHANT_PRODUCTS_KEY, JSON.stringify(merchant))
+  } catch {
+    /* private mode etc. */
+  }
+}
+
+function mergeCatalogProducts(seed: Product[], merchant: Product[]): Product[] {
+  const merchantIds = new Set(merchant.map((p) => p.id))
+  return [...merchant, ...seed.filter((p) => !merchantIds.has(p.id))]
+}
+
+export const useCommerceStore = defineStore('commerce', () => {
+  const products = ref<Product[]>(mergeCatalogProducts(buildSeedProducts(), loadMerchantProducts()))
 
   // ── Product CRUD (mock-persistent) ───────────────────────────────
   function nextProductId(): number {
@@ -772,8 +810,11 @@ export const useCommerceStore = defineStore('commerce', () => {
       productType: PRODUCT_TYPES[0]!,
       detail: input.detail,
       components: input.components,
+      createdVia: input.createdVia ?? 'manual',
+      merchantPersisted: true,
     }
     products.value.unshift(product)
+    saveMerchantProducts(products.value)
     useOnboardingStore().complete('first-product')
     return product
   }
@@ -799,6 +840,7 @@ export const useCommerceStore = defineStore('commerce', () => {
     }
     product.detail = input.detail
     product.components = input.components
+    if (product.merchantPersisted) saveMerchantProducts(products.value)
   }
 
   /** Bulk edits driven from the Products list selection bar. */
@@ -851,11 +893,13 @@ export const useCommerceStore = defineStore('commerce', () => {
 
   function deleteProduct(id: number): void {
     products.value = products.value.filter((p) => p.id !== id)
+    saveMerchantProducts(products.value)
   }
 
   function deleteProducts(ids: number[]): void {
     const remove = new Set(ids)
     products.value = products.value.filter((p) => !remove.has(p.id))
+    saveMerchantProducts(products.value)
   }
 
   // ── Inventory slice (mock-persistent) ────────────────────────────

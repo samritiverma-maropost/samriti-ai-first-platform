@@ -69,6 +69,9 @@ const url = ref('')
 const description = ref('')
 const hasVariants = ref(false)
 
+/** Variants UI on step 3, or on Details when the toggle is on (e.g. after Da Vinci Apply). */
+const showVariantPanels = computed(() => step.value === 3 || (step.value === 1 && hasVariants.value))
+
 // ── Step 1 — Search engine listing ──────────────────────────────────────
 const seoTitle = ref('')
 const seoMetaDescription = ref('')
@@ -253,6 +256,7 @@ function save(publishStatus: PublishStatus) {
     type: 'product',
     publishStatus,
     detail,
+    createdVia: daVinciApplied.value?.mode === 'create' ? 'davinci' : 'manual',
   }
   allowNextLeave()
   if (isEdit.value && editingId.value !== null) {
@@ -295,6 +299,9 @@ function buildSnapshot(): ProductSnapshot {
     options: hasVariants.value
       ? options.value.filter(o => o.name.trim() && o.values.length).map(o => ({ name: o.name, values: [...o.values] }))
       : [],
+    price: hasVariants.value
+      ? (generatedVariants.value[0]?.price ?? '')
+      : defaultVariant.value.price,
     seo: { title: seoTitle.value, metaDescription: seoMetaDescription.value, urlHandle: seoUrlHandle.value },
   }
 }
@@ -330,8 +337,9 @@ function hydrateFromDraft(payload: CatalogApplyPayload) {
     hasVariants.value = true
     options.value = f.options.map(o => ({ name: o.name, values: [...o.values] }))
     regenerateVariants()
-    for (const variant of generatedVariants.value) {
-      if (f.price !== undefined) variant.price = f.price
+    for (const [i, variant] of generatedVariants.value.entries()) {
+      if (f.variantPrices?.[i] !== undefined) variant.price = f.variantPrices[i]
+      else if (f.price !== undefined) variant.price = f.price
       if (f.sku !== undefined && !variant.sku) variant.sku = `${f.sku}-${variant.title.replace(/[^A-Za-z0-9]+/g, '-').toUpperCase()}`
     }
   } else if (f.price !== undefined) {
@@ -340,7 +348,8 @@ function hydrateFromDraft(payload: CatalogApplyPayload) {
   }
   if (payload.mode === 'create') {
     unlockAll()
-    goStep(1)
+    // When Da Vinci drafted sizes/colours, land on Variants with the toggle on and rows prefilled.
+    goStep(f.options?.length ? 3 : 1)
   }
   daVinciApplied.value = { at: payload.appliedAt, mode: payload.mode, field: payload.field }
   daVinciNotice.value = true
@@ -544,7 +553,7 @@ onMounted(() => {
         </template>
 
         <!-- Step 2 — Organise -->
-        <template v-else-if="step === 2">
+        <template v-if="step === 2">
           <MpWizardStepCard title="Organise" description="Classify this product so it's easy to find and merchandise.">
             <MpFormGrid :cols="2">
               <v-select v-model="taxCategory" :items="taxCategoryOptions" label="Tax Category" clearable />
@@ -591,8 +600,8 @@ onMounted(() => {
           </v-card>
         </template>
 
-        <!-- Step 3 — Variants -->
-        <template v-else>
+        <!-- Variants (step 3, or Details when toggle is on) -->
+        <template v-if="showVariantPanels">
           <!-- With variants: options builder -->
           <template v-if="hasVariants">
             <MpWizardStepCard title="Options" description="Add an option name (e.g. Size) and its values. Variants are generated automatically.">

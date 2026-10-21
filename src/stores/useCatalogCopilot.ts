@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import router from '@/router'
 import { useAccountsStore } from './useAccounts'
 import { usePlgStore } from './usePlg'
@@ -328,6 +328,14 @@ export const useCatalogCopilotStore = defineStore('catalogCopilot', () => {
 
   // ── Context ────────────────────────────────────────────────────────────────
 
+  /** Commerce routes use `/commerce/:accountId/...` — Apply targets must match the URL, not only the switcher. */
+  function commerceAccountId(): string {
+    const raw = router.currentRoute.value.params.accountId
+    const fromRoute = Array.isArray(raw) ? raw[0] : raw
+    if (fromRoute) return String(fromRoute)
+    return accounts.activeId
+  }
+
   function routeTarget(): CatalogTarget {
     const route = router.currentRoute.value
     const params: Record<string, string> = {}
@@ -344,6 +352,13 @@ export const useCatalogCopilotStore = defineStore('catalogCopilot', () => {
       const value = route.params[key]
       return String(Array.isArray(value) ? (value[0] ?? '') : (value ?? '')) === expected
     })
+  }
+
+  async function goToTarget(target: CatalogTarget) {
+    if (target.name === 'ProductNew' && target.params.accountId) {
+      return router.push(`/commerce/${target.params.accountId}/products/new`)
+    }
+    return router.push({ name: target.name, params: target.params })
   }
 
   function sameContext(a: CatalogContext, b: CatalogContext) {
@@ -400,7 +415,7 @@ export const useCatalogCopilotStore = defineStore('catalogCopilot', () => {
 
   function openCreate(surface: CatalogSurface, options: { greet?: boolean } = {}) {
     return begin(
-      { mode: 'create', surface, target: { name: 'ProductNew', params: { accountId: accounts.activeId } } },
+      { mode: 'create', surface, target: { name: 'ProductNew', params: { accountId: commerceAccountId() } } },
       options.greet ?? true,
     )
   }
@@ -471,8 +486,14 @@ export const useCatalogCopilotStore = defineStore('catalogCopilot', () => {
     const payload: CatalogApplyPayload = { ...input, id: makeId('apply'), appliedAt: Date.now() }
     pendingApply.value = payload
     if (!isOnTarget(input.target)) {
-      const failure = await router.push({ name: input.target.name, params: input.target.params })
+      const failure = await goToTarget(input.target)
       if (failure) {
+        if (pendingApply.value?.id === payload.id) pendingApply.value = null
+        return { ok: false, reason: 'navigation' }
+      }
+      await router.isReady()
+      await nextTick()
+      if (!isOnTarget(input.target)) {
         if (pendingApply.value?.id === payload.id) pendingApply.value = null
         return { ok: false, reason: 'navigation' }
       }
@@ -496,6 +517,7 @@ export const useCatalogCopilotStore = defineStore('catalogCopilot', () => {
 
   /** The form hydrated: bill one AI Action (10 credits) and record Apply Completed. */
   function confirmApplied(payload: CatalogApplyPayload) {
+    markDraft(payload.draftId, 'applied', payload.keys)
     const current = wallet.value
     const action = actionOf(payload)
     if (current.kind !== 'none') {

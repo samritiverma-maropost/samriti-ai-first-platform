@@ -356,6 +356,11 @@ onMounted(() => {
   if (key && flashMessages[key]) {
     toast.success(flashMessages[key]!)
     router.replace({ query: {} })
+    // New wizard products are prepended — show them even if status filters were active.
+    page.value = 1
+    if (key === 'product-published' || key === 'product-draft') {
+      filters.value.publishStatus = []
+    }
   }
 })
 </script>
@@ -516,13 +521,26 @@ onMounted(() => {
             <v-avatar :size="36" rounded="lg" class="border flex-shrink-0">
               <div class="prod-thumb"><v-icon size="16">image</v-icon></div>
             </v-avatar>
-            <div>
-              <RouterLink
-                :to="{ name: 'ProductEdit', params: { accountId, productId: item.id } }"
-                class="prod-link text-body-2 font-weight-medium"
-              >
-                {{ item.name }}
-              </RouterLink>
+            <div class="min-width-0">
+              <div class="d-flex flex-wrap align-center ga-2">
+                <RouterLink
+                  :to="{ name: 'ProductEdit', params: { accountId, productId: item.id } }"
+                  class="prod-link text-body-2 font-weight-medium"
+                >
+                  {{ item.name }}
+                </RouterLink>
+                <v-chip
+                  v-if="item.createdVia === 'davinci'"
+                  size="x-small"
+                  color="primary"
+                  variant="tonal"
+                  label
+                  prepend-icon="sparkles"
+                  class="flex-shrink-0"
+                >
+                  Da Vinci
+                </v-chip>
+              </div>
               <div v-if="item.variants > 1" class="text-caption text-medium-emphasis">{{ item.variants }} variants</div>
               <div v-else-if="item.type === 'kit'" class="text-caption text-medium-emphasis">Kit</div>
             </div>

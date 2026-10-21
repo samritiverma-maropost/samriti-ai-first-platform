@@ -43,6 +43,8 @@ export interface CatalogDraft {
   options?: ProductOption[]
   /** Only when the merchant stated a price; applied to every variant. */
   price?: string
+  /** Size (or option) ladder when the merchant asked for per-size pricing without stating amounts. */
+  variantPrices?: string[]
   seoTitle?: string
   seoMetaDescription?: string
 }
@@ -58,6 +60,8 @@ export interface ProductSnapshot {
   categories: string[]
   collection: string
   options: ProductOption[]
+  /** Representative variant price (for enrich price updates). */
+  price?: string
   seo?: { title: string; metaDescription: string; urlHandle: string }
 }
 
@@ -124,7 +128,7 @@ interface Kind {
   nouns?: Record<string, string>
   categories: string[]
   tag: string
-  sizes?: 'shoe' | 'apparel'
+  sizes?: 'shoe' | 'apparel' | 'volume'
   purpose: string
   features: [string, string, string]
   subtitle: string
@@ -188,8 +192,8 @@ const KINDS: Kind[] = [
   },
   {
     id: 'mug', code: 'MUG', noun: 'mug', nounFromMatch: true,
-    test: /\b(?:mugs?|cups?|teacups?)\b/i,
-    categories: ['Home & Kitchen'], tag: 'Drinkware',
+    test: /\b(?:mugs?|cups?|teacups?|coffee cups?)\b/i,
+    categories: ['Home & Kitchen'], tag: 'Drinkware', sizes: 'volume',
     purpose: 'made for slow mornings and long afternoons',
     features: ['a comfortable, easy-to-hold shape', 'a finish that cleans up easily', 'a size that suits your daily routine'],
     subtitle: 'Your new everyday favourite', typicalPrice: '24',
@@ -233,7 +237,7 @@ const KINDS: Kind[] = [
   },
   {
     id: 'beauty', code: 'BTY', noun: 'skincare product', nounFromMatch: true, nouns: { massage: 'massage device' },
-    test: /\b(?:serums?|creams?|moisturi[sz]ers?|lotions?|cleansers?|shampoos?|conditioners?|balms?|face oils?|body oils?|soaps?|scrubs?|massage)\b/i,
+    test: /\b(?:serums?|creams?|moisturi[sz]ers?|lotions?|cleansers?|shampoos?|conditioners?|balms?|face oils?|body oils?|soaps?|scrubs?|massage|toothpastes?|mouthwashes?)\b/i,
     categories: ['Beauty & Health'], tag: 'Skincare',
     purpose: 'made for a simple daily routine',
     features: ['a lightweight texture that absorbs quickly', 'a formula that feels gentle on skin', 'a size that lasts'],
@@ -316,14 +320,18 @@ type Tone = 'default' | 'playful' | 'premium' | 'short'
 const QUOTE_RE = /["“”]([^"“”]+)["“”]/g
 // Stops before the next clause so "called Cedar & Smoke by Local Artisan" yields the name only.
 const CALLED_RE = /\b(?:called|named|titled|call it|name it|rename it to)\s+(.+?)(?=\s*(?:[,.;!?]|$)|\s+(?:by|with|in|for|priced|at|costing|sizes?|colou?rs?)\b)/gi
-const FRESH_NAME_RE = /["“”][^"“”]+["“”]|\b(?:called|named|titled)\s+\S/i
+const FRESH_NAME_RE = /["“”][^"“”]+["“”]|\b(?:called|named|titled)\s+\S|\bproduct\s+name\b/i
+const PRODUCT_NAME_RE = /\b(?:product\s+)?name(?:d|:|\s+is)?\s+([\p{L}\p{N}][\p{L}\p{N}&'’\s-]{0,48}?)(?=\s*[,;]|$|\s+(?:i\s+|I\s+|with|in|and|for|priced|need|that|which|at\b))/giu
+const SIZE_TIERED_PRICE_RE = /\b(?:pricing?|prices?)\s+(?:according to|based on|by|per|for each)\s+(?:the\s+)?sizes?\b|\b(?:different|varying|separate)\s+prices?\s+(?:for|per|by|each)\s+(?:the\s+)?sizes?\b|\bprice\s+(?:each\s+)?size\b/i
 const CREATE_VERB_RE = /\b(?:create|add|draft|make|write|list|build|new)\b/i
 const AUDIENCE_RE = /\b(women|ladies|men|kids|children|boys|girls|unisex)(?:['’]?s)?['’]?(?![a-z])/gi
 const TONE_RE = /\b(playful|fun|cheeky|premium|luxur(?:y|ious)|elevated|refined|short(?:er)?|concise|brief|punchy)\b/gi
 const PRICE_RE = /\$\s?(\d{1,6}(?:\.\d{1,2})?)|\b(\d{1,6}(?:\.\d{1,2})?)\s?(?:dollars|usd|aud|nzd)\b|\bpriced?\s+(?:at\s+)?(\d{1,6}(?:\.\d{1,2})?)\b/gi
 const SIZE_RANGE_RE = /\bsizes?\s+(?:from\s+)?([a-z0-9.]+)\s*(?:-|–|to|through)\s*([a-z0-9.]+)/gi
 const SIZE_LIST_RE = /\bsizes?\s+((?:[a-z0-9.]+\s*(?:,|and|&|\/)\s*)+[a-z0-9.]+)/gi
-const SIZE_MENTION_RE = /\bsizes?\b|\bsized\b/i
+const SIZE_MENTION_RE = /\bsizes?\b|\bsized\b|\bin\s+\d+\s+sizes?\b/i
+const SIZE_COUNT_RE = /\b(?:in\s+)?(\d{1,2})\s+sizes?\b/i
+const NAMED_VOLUME_RE = /\b(?:small|medium|regular|large|xlarge|x-large|extra large)\b/gi
 const COLOUR_LEAD_RE = /\b(?:colou?rs?|colou?rways?|in)\s+/gi
 const LETTER_SIZES = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL']
 const COLOURS = new Set([
@@ -341,11 +349,18 @@ function lastMatch(re: RegExp, text: string): RegExpExecArray | undefined {
   return last
 }
 
+/** "add Pen in three colours" / "create a mug" — simple merchant phrasing without "called". */
+const ADD_NOUN_RE = /\b(?:add|create|draft|make|new|list|build)\s+(?:a|an|the|my|our)?\s*([\p{L}][\p{L}\p{N}'’-]{0,30})(?=\s+(?:in|with|for|,|\.|;|$)|$)/giu
+
 function parseName(text: string): string | undefined {
   const quoted = lastMatch(QUOTE_RE, text)?.[1]?.trim()
   if (quoted) return quoted
   const called = lastMatch(CALLED_RE, text)?.[1]?.trim()
   if (called) return called
+  const productName = lastMatch(PRODUCT_NAME_RE, text)?.[1]?.trim().replace(/[.!?]+$/, '')
+  if (productName) return titleCase(productName)
+  const addNoun = lastMatch(ADD_NOUN_RE, text)?.[1]?.trim()
+  if (addNoun && addNoun.length > 1) return titleCase(addNoun)
   // "Create a men's trail running shoe, Trail Runner Pro, with sizes" — a Title Case
   // clause after the first one is the product's name.
   const clauses = text.split(/[,;]/).map((s) => s.trim().replace(/[.!?]+$/, ''))
@@ -403,9 +418,28 @@ function parseTone(text: string): Tone {
 }
 
 function parsePrice(text: string): string | undefined {
+  // "increase from $10 to $15" — the target amount is after "to" / "at".
+  const toTarget = lastMatch(/\b(?:to|at)\s+\$?\s?(\d{1,6}(?:\.\d{1,2})?)\b/gi, text)?.[1]
+  if (toTarget) return Number(toTarget).toFixed(2)
   const m = lastMatch(PRICE_RE, text)
   const raw = m?.[1] ?? m?.[2] ?? m?.[3]
   return raw ? Number(raw).toFixed(2) : undefined
+}
+
+function mentionsPriceChange(text: string): boolean {
+  return /\bpric(?:e|ing)\b/i.test(text)
+}
+
+/** Merchant asked only to change price — not copy, SEO, or categories. */
+function isPriceOnlyPrompt(text: string): boolean {
+  if (!mentionsPriceChange(text) || !parsePrice(text)) return false
+  const areas = parseAreas(text)
+  return !areas || (areas.size === 1 && areas.has('price'))
+}
+
+function variantCountFromSnapshot(snapshot: ProductSnapshot): number {
+  if (!snapshot.options.length) return 1
+  return snapshot.options.reduce((n, o) => n * Math.max(1, o.values.length), 1)
 }
 
 function parseBrand(text: string, vocab: CatalogVocab): string | undefined {
@@ -442,10 +476,54 @@ function parseSizes(text: string): string[] | undefined {
     const values = list[1]!.split(/\s*(?:,|\band\b|&|\/)\s*/).map((v) => v.trim().toUpperCase()).filter(Boolean)
     if (values.length > 1) return values
   }
+  const named: string[] = []
+  NAMED_VOLUME_RE.lastIndex = 0
+  for (let m = NAMED_VOLUME_RE.exec(text); m; m = NAMED_VOLUME_RE.exec(text)) {
+    const word = m[0]!.toLowerCase()
+    const label = word === 'xlarge' || word === 'x-large' || word === 'extra large' ? 'X-Large'
+      : word === 'regular' ? 'Medium'
+      : word.charAt(0).toUpperCase() + word.slice(1)
+    if (!named.includes(label)) named.push(label)
+  }
+  NAMED_VOLUME_RE.lastIndex = 0
+  if (named.length > 1) return named
   return undefined
 }
 
+function parseSizeCount(text: string): number | undefined {
+  const m = lastMatch(SIZE_COUNT_RE, text)
+  if (!m) return undefined
+  const n = Number(m[1])
+  return Number.isFinite(n) && n >= 2 && n <= 12 ? n : undefined
+}
+
+function wantsSizeTieredPricing(text: string): boolean {
+  return SIZE_TIERED_PRICE_RE.test(text)
+}
+
+/** Suggested retail ladder when the merchant asked for per-size pricing but gave no amounts. */
+function suggestVariantPriceLadder(kind: Kind, count: number, brief: string): string[] {
+  let base = Number(kind.typicalPrice)
+  if (/\btoothpastes?\b/i.test(brief)) base = 7.99
+  const step = base < 15 ? 2 : 3
+  return Array.from({ length: count }, (_, i) => (base + i * step).toFixed(2))
+}
+
+const VOLUME_SIZE_LABELS = ['Small', 'Medium', 'Large', 'X-Large', 'Extra Large', 'XX-Large']
+
+function sizesFromCount(count: number, kind: Kind): string[] | undefined {
+  if (count < 2 || count > 12) return undefined
+  if (kind.sizes === 'volume') return VOLUME_SIZE_LABELS.slice(0, count)
+  if (kind.sizes === 'apparel') return LETTER_SIZES.filter((s) => s !== 'XXS').slice(0, count)
+  if (kind.sizes === 'shoe') {
+    const start = 8
+    return Array.from({ length: count }, (_, i) => String(start + i))
+  }
+  return VOLUME_SIZE_LABELS.slice(0, count)
+}
+
 function defaultSizes(kind: Kind, audience: Audience | undefined): string[] | undefined {
+  if (kind.sizes === 'volume') return ['Small', 'Medium', 'Large']
   if (kind.sizes === 'shoe') {
     if (audience === 'women') return ['5', '6', '7', '8', '9', '10']
     if (audience === 'kids') return ['11', '12', '13', '1', '2', '3']
@@ -457,7 +535,7 @@ function defaultSizes(kind: Kind, audience: Audience | undefined): string[] | un
 }
 
 function parseColours(text: string): string[] {
-  const lower = text.toLowerCase()
+  const lower = text.toLowerCase().replace(/\bclours\b/g, 'colours')
   let best: string[] = []
   COLOUR_LEAD_RE.lastIndex = 0
   for (let m = COLOUR_LEAD_RE.exec(lower); m; m = COLOUR_LEAD_RE.exec(lower)) {
@@ -470,6 +548,13 @@ function parseColours(text: string): string[] {
     if (found.length) best = found
   }
   COLOUR_LEAD_RE.lastIndex = 0
+  // "Black, green and red" anywhere in the brief — no "colours:" lead required.
+  const scanned: string[] = []
+  for (const word of lower.split(/[^a-z]+/)) {
+    if (!word || word === 'and' || word === 'or') continue
+    if (COLOURS.has(word) && !scanned.includes(word)) scanned.push(word)
+  }
+  if (scanned.length > best.length) best = scanned
   return best.map(capitalize)
 }
 
@@ -481,6 +566,7 @@ function parseAreas(prompt: string): Set<CatalogFieldKey> | null {
   if (/\bcategor(?:y|ies)\b/i.test(prompt)) areas.add('categories')
   if (/\bsubtitle\b|\btagline\b/i.test(prompt)) areas.add('subtitle')
   if (/\bcollections?\b/i.test(prompt)) areas.add('collection')
+  if (mentionsPriceChange(prompt) && parsePrice(prompt)) areas.add('price')
   return areas.size ? areas : null
 }
 
@@ -652,7 +738,7 @@ const CATEGORY_CUES: { category: string; test: RegExp }[] = [
   { category: 'Apparel', test: /\b(?:shoes?|sneakers?|trainers?|air max|runners?|boots?|jeans|leggings|pants|shorts|shirt|tee|sweater|hoodie|jacket|vest|fleece|dress|skirt|socks?|luggage|carry-on|backpack)\b/i },
   { category: 'Home & Kitchen', test: /\b(?:kitchen|mixer|blender|cooker|pot|oven|pan|skillet|knife|mug|tumbler|kettle|espresso|coffee|sous vide|vacuum|mattress|pillow|towel|candle|lamp|grill)\b/i },
   { category: 'Sports & Outdoors', test: /\b(?:bike|yoga|fitness|gym|running|trail|hiking|camping|tent|cooler|quencher|flask|adventure|outdoor)\b/i },
-  { category: 'Beauty & Health', test: /\b(?:massage|serum|cream|lotion|shampoo|skincare|makeup|vitamins?|supplements?|toothbrush|razor|fragrance|perfume)\b/i },
+  { category: 'Beauty & Health', test: /\b(?:massage|serum|cream|lotion|shampoo|skincare|makeup|vitamins?|supplements?|toothbrush|toothpaste|mouthwash|razor|fragrance|perfume)\b/i },
   { category: 'Tools & Garden', test: /\b(?:drill|saw|hammer|wrench|screwdriver|tools?|garden|hose|mower|trimmer)\b/i },
 ]
 
@@ -792,7 +878,8 @@ export function generateCreateDraft(brief: string, vocab: CatalogVocab): Catalog
   const name = parseName(brief)
   const rawDescriptor = parseDescriptor(brief, name)
   const matched = detectKind(rawDescriptor) ?? detectKind(brief)
-  if (!name && !matched) {
+  // Any parsed name, product kind, or leftover noun phrase ("add Pen…") is enough to draft.
+  if (!name && !matched && !rawDescriptor.trim()) {
     return {
       ok: false,
       code: 'unclear',
@@ -811,12 +898,20 @@ export function generateCreateDraft(brief: string, vocab: CatalogVocab): Catalog
 
   const options: ProductOption[] = []
   const explicitSizes = parseSizes(brief)
-  const sizesAsked = SIZE_MENTION_RE.test(brief)
-  const sizes = explicitSizes ?? (sizesAsked ? defaultSizes(kind, audience) : undefined)
+  const sizeCount = parseSizeCount(brief)
+  const sizesAsked = SIZE_MENTION_RE.test(brief) || sizeCount !== undefined
+  const sizes = explicitSizes
+    ?? (sizeCount ? sizesFromCount(sizeCount, kind) : undefined)
+    ?? (sizesAsked ? defaultSizes(kind, audience) : undefined)
   if (sizes) options.push({ name: 'Size', values: sizes })
   const colours = parseColours(brief)
   if (colours.length > 1) options.push({ name: 'Colour', values: colours })
   const avail = availability(options, kind, colours.length === 1 ? colours[0] : undefined)
+  const sizeValues = options.find((o) => o.name === 'Size')?.values
+  const tieredPrices =
+    !price && sizeValues?.length && wantsSizeTieredPricing(brief)
+      ? suggestVariantPriceLadder(kind, sizeValues.length, brief)
+      : undefined
 
   const copy: CopyInput = { name, descriptor, kind, tone, availability: avail }
   const draft: CatalogDraft = {
@@ -831,6 +926,7 @@ export function generateCreateDraft(brief: string, vocab: CatalogVocab): Catalog
     collection: matchCollection(`${title} ${descriptor}`, vocab.collections),
     options: options.length ? options : undefined,
     price,
+    variantPrices: tieredPrices,
     seoTitle: buildSeoTitle(title, descriptor, brand),
     seoMetaDescription: buildSeoMeta(copy),
   }
@@ -839,7 +935,9 @@ export function generateCreateDraft(brief: string, vocab: CatalogVocab): Catalog
   if (!name) sentences.push(`You didn’t name it, so the title is “${title}” — change it in Details.`)
   if (sizes && !explicitSizes) sentences.push(`I added a standard size run (${sizeRange(sizes)}); edit it in Variants if yours differs.`)
   else if (sizesAsked && !sizes) sentences.push('Tell me which sizes you sell and I’ll add them.')
-  sentences.push(price ? `Every variant is priced at $${price}.` : 'You didn’t mention a price, so pricing is left for you in Variants.')
+  if (price) sentences.push(`Every variant is priced at $${price}.`)
+  else if (tieredPrices?.length) sentences.push(`I suggested a price for each size (${tieredPrices.map((p) => `$${p}`).join(', ')}) — adjust in Variants if needed.`)
+  else sentences.push('You didn’t mention a price, so pricing is left for you in Variants.')
   if (!brand) sentences.push('Brand is blank because you didn’t name one.')
 
   const gaps: CatalogFieldKey[] = []
@@ -850,6 +948,7 @@ export function generateCreateDraft(brief: string, vocab: CatalogVocab): Catalog
   if (!name) notes.push(`“${title}” is a working title — you didn’t name the product.`)
   if (sizes && !explicitSizes) notes.push(`Standard size run (${sizeRange(sizes)}) — edit it in Variants if yours differs.`)
   else if (sizesAsked && !sizes) notes.push('No sizes yet — tell me which ones you sell.')
+  if (tieredPrices?.length) notes.push('Size-based prices are suggestions — change them in Variants before you publish.')
 
   const refinements: string[] = []
   if (!price) refinements.push(`Set the price to $${kind.typicalPrice}`)
@@ -906,6 +1005,36 @@ export function generateEnrichDraft(
 
   // "Nike Air Max 270 - Black/White" reads better in copy as "Nike Air Max 270".
   const displayName = name.split(/\s+[-–|]\s+/)[0]?.trim() || name
+
+  const priceUpdate = parsePrice(prompt)
+  if (isPriceOnlyPrompt(prompt) && priceUpdate) {
+    const currentPrice = snapshot.price?.trim() || ''
+    if (sameValue(priceUpdate, currentPrice)) {
+      return {
+        ok: false,
+        code: 'no_changes',
+        message: `${displayName || 'This product'} is already priced at $${priceUpdate}.`,
+        steps,
+      }
+    }
+    const variants = variantCountFromSnapshot(snapshot)
+    const intro = variants > 1
+      ? `Set price to $${priceUpdate} for all ${variants} variants.`
+      : `Set price to $${priceUpdate}.`
+    return {
+      ok: true,
+      draft: { price: priceUpdate },
+      keys: ['price'],
+      current: { price: currentPrice || undefined },
+      intro,
+      explanation: `I’ll update the price to $${priceUpdate}${variants > 1 ? ` on every variant (${variants} colour${variants === 1 ? '' : 's'})` : ''}. Apply it, then click Save — status and inventory stay as they are.`,
+      gaps: [],
+      notes: variants > 1 ? [`All ${variants} variant rows will use $${priceUpdate}.`] : [],
+      steps: ['Read the current product', 'Apply the new price'],
+      refinements: [],
+    }
+  }
+
   const matched = detectKind(snapshot.description) ?? detectKind(name)
   const kind = matched?.kind ?? GENERIC
   const audience = parseAudience(`${name} ${snapshot.description}`)
@@ -925,6 +1054,7 @@ export function generateEnrichDraft(
     tag: snapshot.tag,
     categories: snapshot.categories,
     collection: snapshot.collection,
+    price: snapshot.price,
     seoTitle: snapshot.seo?.title ?? '',
     seoMetaDescription: snapshot.seo?.metaDescription ?? '',
   }
@@ -947,6 +1077,7 @@ export function generateEnrichDraft(
     tag: snapshot.tag || !kind.tag ? undefined : kind.tag,
     categories: addedCategories.length ? [...snapshot.categories, ...addedCategories] : undefined,
     collection: snapshot.collection ? undefined : matchCollection(`${name} ${descriptor}`, vocab.collections),
+    price: mentionsPriceChange(prompt) && priceUpdate ? priceUpdate : undefined,
     seoTitle: displayName ? buildSeoTitle(displayName, descriptor, snapshot.brand || undefined) : undefined,
     seoMetaDescription: displayName ? buildSeoMeta(copy) : undefined,
   }

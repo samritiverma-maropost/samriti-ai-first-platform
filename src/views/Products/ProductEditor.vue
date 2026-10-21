@@ -155,7 +155,7 @@ async function save() {
 
 // ── Da Vinci Catalog Co-Pilot ─────────────────────────────────────────
 // Suggestions patch the fields the merchant picked, in memory. Save persists them.
-// Da Vinci never touches status, options, prices or inventory on this page.
+// Da Vinci never touches status, options, or inventory; explicit price asks update every variant row.
 
 const daVinciApplied = ref<{ at: number } | null>(null)
 const daVinciNotice = ref(false)
@@ -172,6 +172,7 @@ function buildSnapshot(): ProductSnapshot {
     categories: [...(f.detail.categories ?? [])],
     collection: f.detail.collection ?? '',
     options: f.detail.options.map((o) => ({ name: o.name, values: [...o.values] })),
+    price: variantRows.value[0]?.price ?? f.price,
     seo: { title: f.seo.title, metaDescription: f.seo.metaDescription, urlHandle: f.seo.urlHandle },
   }
 }
@@ -200,6 +201,10 @@ function applyDaVinci(payload: CatalogApplyPayload) {
   if (f.collection !== undefined) target.detail.collection = f.collection
   if (f.seoTitle !== undefined) target.seo.title = f.seoTitle
   if (f.seoMetaDescription !== undefined) target.seo.metaDescription = f.seoMetaDescription
+  if (f.price !== undefined) {
+    target.price = f.price
+    target.detail.variantsList.forEach((v) => { v.price = f.price! })
+  }
   daVinciApplied.value = { at: payload.appliedAt }
   daVinciNotice.value = true
   catalog.confirmApplied(payload)

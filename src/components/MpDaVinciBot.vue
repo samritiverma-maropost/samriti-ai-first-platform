@@ -1117,11 +1117,8 @@ async function onCatalogApply(card: CatalogDraftProps, keys: CatalogFieldKey[]) 
   } finally {
     applyingDraftId.value = null
   }
-  // Success is confirmed once on the form (its notice) and once here (the card's
-  // Applied state) — no toast on top.
-  if (result.ok) {
-    catalog.markDraft(card.draftId, 'applied', keys)
-  } else if (result.reason === 'navigation') {
+  // Applied state is set in confirmApplied() after the form hydrates (D12) — not here.
+  if (!result.ok && result.reason === 'navigation') {
     pushToast({ title: 'Nothing was applied', sub: 'You stayed on this page, so no credits were used.' })
   }
   // A gate reason: the store has already posted the gate card.
